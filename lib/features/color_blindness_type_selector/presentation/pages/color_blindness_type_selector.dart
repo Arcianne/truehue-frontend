@@ -12,7 +12,7 @@ class ColorBlindnessTypeSelector extends StatelessWidget {
     return Scaffold(
       backgroundColor: Color(0xFF130E64),
       appBar: _buildAppbar(),
-      body: _buildBody(),
+      body: _buildBody(context),
     );
   }
 
@@ -24,67 +24,98 @@ class ColorBlindnessTypeSelector extends StatelessWidget {
     );
   }
 
-  _buildBody() {
-    return Center(
+ _buildBody(BuildContext context) {
+  return SafeArea(
+    child: Center(
       child: Column(
         children: <Widget>[
-          Image.asset('assets/icon/truehue_logo.png', width: 100, height: 100),
+          Container(
+            margin: const EdgeInsets.only(top: 60.0, left: 20.0, right: 20.0),
+            child: Image.asset(
+              'assets/icon/truehue_logo.png',
+              width: 150,
+              height: 150,
+            ),
+          ),
 
           const SizedBox(height: 20),
           const Text(
-            'Select your Type of Color Blindness:',
+            'Select your Type of\n Color Blindness:',
+            textAlign: TextAlign.center,
             style: TextStyle(
               color: Color(0xFFCEF5FF),
-              fontSize: 24,
+              fontSize: 22,
               fontStyle: FontStyle.italic,
             ),
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 40),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Color(0xFFCEF5FF),
               foregroundColor: Color(0xFF130E64),
+              fixedSize: const Size(164, 31),
+              shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
             ),
             onPressed: () {
               Navigator.push(
-                _buildBody(),
+                _buildBody(context),
                 MaterialPageRoute(builder: (context) => Home()),
               );
             },
-            child: const Text('Protanopia'),
+            child: const Text('Deuteranopia',
+              softWrap: false,
+            style: TextStyle(
+              fontSize: 19,
+            )),
           ),
 
-          const SizedBox(height: 20),
+          // const SizedBox(height: 20),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Color(0xFFCEF5FF),
               foregroundColor: Color(0xFF130E64),
+              fixedSize: const Size(164, 31),
+              shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
             ),
             onPressed: () {
               Navigator.push(
-                _buildBody(),
+                _buildBody(context),
                 MaterialPageRoute(builder: (context) => Home()),
               );
             },
-            child: const Text('Deuteranopia'),
+            child: const Text('Protanopia',
+            style: TextStyle(
+              fontSize: 19,
+            )),
           ),
 
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Color(0xFFCEF5FF),
               foregroundColor: Color(0xFF130E64),
+              fixedSize: const Size(164, 31),
+              shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
             ),
             onPressed: () {
               Navigator.push(
-                _buildBody(),
+                _buildBody(context),
                 MaterialPageRoute(builder: (context) => Home()),
               );
             },
-            child: const Text('Tritanopia'),
+            child: const Text('Tritanopia',
+            style: TextStyle(
+              fontSize: 19,
+            )),
           ),
         ],
       ),
-    );
+    ));
   }
 }
