@@ -5,7 +5,7 @@ import 'package:truehue/features/color_blindness_type_selector/presentation/page
 import 'package:truehue/features/farnsworth_test/presentation/pages/farnsworth_test.dart';
 
 class Welcome extends StatelessWidget {
-  const Welcome({Key? key}) : super(key: key);
+  const Welcome({super.key});
 
   @override
   Widget build(BuildContext context) {

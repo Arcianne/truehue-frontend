@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:truehue/features/home/presentation/pages/home.dart';
 
 class ColorBlindnessTypeSelector extends StatelessWidget {
-  const ColorBlindnessTypeSelector({ Key? key }) : super(key: key);
+  const ColorBlindnessTypeSelector({ super.key });
 
   @override
   Widget build(BuildContext context) {

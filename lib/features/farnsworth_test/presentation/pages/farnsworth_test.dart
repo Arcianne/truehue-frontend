@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class FarnsworthTest extends StatelessWidget {
-  const FarnsworthTest({Key? key}) : super(key: key);
+  const FarnsworthTest({super.key});
 
   @override
   Widget build(BuildContext context) {
