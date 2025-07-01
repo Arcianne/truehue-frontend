@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import 'package:truehue/features/home/presentation/pages/home.dart';
 
+import 'package:truehue/shared/presentation/widgets/button.dart';
+
 class ColorBlindnessTypeSelector extends StatelessWidget {
   const ColorBlindnessTypeSelector({ super.key });
 
@@ -50,69 +52,51 @@ class ColorBlindnessTypeSelector extends StatelessWidget {
           ),
 
           const SizedBox(height: 40),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFFCEF5FF),
-              foregroundColor: Color(0xFF130E64),
-              fixedSize: const Size(164, 31),
-              shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-            ),
+
+          CustomButton(
+            title: 'Deuteranopia',
+            softWrap: false,
+            fontSize: 19,
             onPressed: () {
               Navigator.push(
                 _buildBody(context),
                 MaterialPageRoute(builder: (context) => Home()),
               );
             },
-            child: const Text('Deuteranopia',
-              softWrap: false,
-            style: TextStyle(
-              fontSize: 19,
-            )),
+            height: 50,
+            width: 180,
           ),
 
-          // const SizedBox(height: 20),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFFCEF5FF),
-              foregroundColor: Color(0xFF130E64),
-              fixedSize: const Size(164, 31),
-              shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-            ),
+          const SizedBox(height: 20),
+
+          CustomButton(
+            title: 'Protanopia',
+            softWrap: false,
+            fontSize: 19,
             onPressed: () {
               Navigator.push(
                 _buildBody(context),
                 MaterialPageRoute(builder: (context) => Home()),
               );
             },
-            child: const Text('Protanopia',
-            style: TextStyle(
-              fontSize: 19,
-            )),
+            height: 50,
+            width: 180,
           ),
 
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFFCEF5FF),
-              foregroundColor: Color(0xFF130E64),
-              fixedSize: const Size(164, 31),
-              shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-            ),
+          const SizedBox(height: 20),
+
+          CustomButton(
+            title: 'Tritanopia',
+            softWrap: false,
+            fontSize: 19,
             onPressed: () {
               Navigator.push(
                 _buildBody(context),
                 MaterialPageRoute(builder: (context) => Home()),
               );
             },
-            child: const Text('Tritanopia',
-            style: TextStyle(
-              fontSize: 19,
-            )),
+            height: 50,
+            width: 180,
           ),
         ],
       ),
