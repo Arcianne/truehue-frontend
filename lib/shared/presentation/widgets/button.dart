@@ -7,6 +7,8 @@ class CustomButton extends StatelessWidget {
   final double? width;
   final double? fontSize;
   final IconData? icon;
+  final double? iconSize;
+  final bool softWrap;
 
   const CustomButton({
     super.key,
@@ -15,29 +17,60 @@ class CustomButton extends StatelessWidget {
     this.height,
     this.width,
     this.icon,
+    this.iconSize,
     this.fontSize,
+    this.softWrap = true,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: height ?? 40,
-      width: width ?? 85,
-      child: ElevatedButton.icon(
-        icon: icon != null ? Icon(icon) : const SizedBox.shrink(),
-        label: Text(title,
-          style:TextStyle(fontSize: fontSize ?? 19),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFCEF5FF),
-          foregroundColor: const Color(0xFF130E64),
-          fixedSize: Size(width ?? 85, height ?? 31),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+//   @override
+//   Widget build(BuildContext context) {
+//     return SizedBox(
+//       height: height ?? 40,
+//       width: width ?? 85,
+//       child: ElevatedButton.icon(
+//         icon: icon != null ? Icon(icon) : const SizedBox.shrink(),
+//         label: Text(title,
+//           style:TextStyle(fontSize: fontSize ?? 19),
+//         ),
+//         style: ElevatedButton.styleFrom(
+//           backgroundColor: const Color(0xFFCEF5FF),
+//           foregroundColor: const Color(0xFF130E64),
+//           fixedSize: Size(width ?? 85, height ?? 31),
+//           shape: RoundedRectangleBorder(
+//             borderRadius: BorderRadius.circular(10),
+//           ),
+//         ),
+//         onPressed: onPressed,
+//       ),
+//     );
+//   }
+// }
+
+    @override
+    Widget build(BuildContext context) {
+        return SizedBox(
+          height: height ?? 40,
+          width: width ?? 85,
+          child: ElevatedButton.icon(
+            // onPressed: onPressed,
+            icon: icon != null
+                ? Icon(icon, size: iconSize ?? 20)
+                : const SizedBox.shrink(),
+            label: Text(
+              title,
+              softWrap: softWrap,
+              style: TextStyle(fontSize: fontSize ?? 19),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFCEF5FF),
+              foregroundColor: const Color(0xFF130E64),
+              fixedSize: Size(width ?? 85, height ?? 31),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: onPressed,
           ),
-        ),
-        onPressed: onPressed,
-      ),
-    );
-  }
-}
+        );
+      }
+    }
