@@ -4,6 +4,10 @@ import 'package:truehue/features/color_blindness_type_selector/presentation/page
 
 import 'package:truehue/features/farnsworth_test/presentation/pages/farnsworth_test.dart';
 
+import 'package:truehue/shared/presentation/widgets/button.dart';
+
+// import 'package:truehue/shared/presentation/widgets/logo_section.dart';
+
 class Welcome extends StatelessWidget {
   const Welcome({super.key});
 
@@ -35,7 +39,6 @@ _buildBody(BuildContext context) {
               style: TextStyle(
                 color: Color(0xFFCEF5FF), 
                 fontSize: 35,
-                // height: 1.5,
                 ),
             ),
 
@@ -53,47 +56,28 @@ _buildBody(BuildContext context) {
 
             const SizedBox (height: 40),
             
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFFCEF5FF),
-                foregroundColor: Color(0xFF130E64),
-                fixedSize: const Size(85, 31),
-                shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-                ),
-              ),
+            CustomButton(
+              title: 'Yes',
+              fontSize: 25,
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => ColorBlindnessTypeSelector()),
+                  MaterialPageRoute(builder: (context) => const ColorBlindnessTypeSelector()),
                 );
               },
-              child: const Text(
-                'Yes',
-                style: TextStyle(fontSize: 19),
-              ),
             ),
 
             const SizedBox(height: 15),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFFCEF5FF),
-                foregroundColor: Color(0xFF130E64),
-                fixedSize: const Size(85, 31),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
+            
+             CustomButton(
+              title: 'No',
+              fontSize: 25,
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => FarnsworthTest()),
+                  MaterialPageRoute(builder: (context) => const FarnsworthTest()),
                 );
               },
-              child: const Text(
-                'No',
-                style: TextStyle(fontSize: 19),
-              ),
             ),
         ],
       ),
