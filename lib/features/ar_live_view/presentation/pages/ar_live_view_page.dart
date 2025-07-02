@@ -1,66 +1,70 @@
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:truehue/shared/presentation/widgets/nav_button.dart';
+// import 'package:permission_handler/permission_handler.dart';
 
-class ARLiveViewPage extends StatefulWidget {
+class ARLiveViewPage extends StatelessWidget {
   const ARLiveViewPage({super.key});
 
   @override
-  State<ARLiveViewPage> createState() => _ARLiveViewPageState();
-}
-
-class _ARLiveViewPageState extends State<ARLiveViewPage> {
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('AR Live View'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+      backgroundColor: const Color(0xFF130E64),
+      body: Center(
+        child: Text(
+          'AR Live View',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
-      body: const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+
+      bottomNavigationBar: Container(
+        color: const Color(0xFF130E64),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            Icon(
-              Icons.camera_alt,
-              size: 64,
-              color: Colors.grey,
-            ),
-            SizedBox(height: 16),
-            Text(
-              'AR Live View',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Camera view will be displayed here',
-              style: TextStyle(color: Colors.grey),
-            ),
+        NavButton(
+          icon: Icons.upload_outlined,
+          label: '',
+          onTap: () {
+            // Navigate to Select a photo
+          },
+        ),
+        NavButton(
+          icon: Icons.camera_alt,
+          label: '',
+          onTap: () {
+            // Navigate to Take a photo
+          },
+        ),
+        NavButton(
+          icon: Icons.visibility,
+          label: '',
+          isSelected: true,
+          onTap: () {
+            // Already on this page, the ar live view
+          },
+        ),
+        NavButton(
+          icon: Icons.menu_book,
+          label: '',
+          onTap: () {
+            // Navigate to color library
+          },
+        ),
+        NavButton(
+          icon: Icons.home,
+          label: '',
+          onTap: () {
+            Navigator.pop(context);
+          },
+        ),
           ],
         ),
       ),
     );
-  }
 }
-
-void openARLiveView(BuildContext context) async {
-  var status = await Permission.camera.status;
-
-  if (!status.isGranted) {
-    status = await Permission.camera.request();
-  }
-
-  // Check if the widget is still mounted before using context
-  if (!context.mounted) return;
-
-  if (status.isGranted) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const ARLiveViewPage()),
-    );
-  } else {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Camera permission is required to use AR live view')),
-    );
-  }
 }
-
