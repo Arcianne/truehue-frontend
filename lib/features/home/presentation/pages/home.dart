@@ -1,24 +1,48 @@
 import 'package:flutter/material.dart';
+import 'package:truehue/features/ar_live_view/presentation/pages/ar_live_view_page.dart';
+import 'package:truehue/features/select_a_photo/presentation/pages/select_a_photo_page.dart';
+import 'package:truehue/features/take_a_photo/presentation/pages/take_a_photo_page.dart';
 
 // import 'package:permission_handler/permission_handler.dart';
 
 // import 'package:truehue/features/color_blindness_type_selector/presentation/pages/color_blindness_type_selector.dart';
+import 'package:truehue/features/color_library/presentation/pages/color_library_page.dart';
 import 'package:truehue/features/welcome/presentation/pages/welcome.dart';
 
 import 'package:truehue/shared/presentation/widgets/button.dart';
 
-// import 'package:truehue/features/ar_live_view/presentation/pages/ar_live_view_page.dart';
+void openARLiveView(BuildContext context) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(builder: (context) => const ARLiveViewPage()),
+  );
+}
+
+void openTakeAPhotoPage(BuildContext context) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(builder: (context) => const TakeAPhotoPage()),
+  );
+}
+
+void openSelectAPhotoPage(BuildContext context) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(builder: (context) => const SelectAPhotoPage()),
+  );
+}
+
+void openColorLibraryPage(BuildContext context) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(builder: (context) => const ColorLibraryPage()),
+  );
+}
 
 
 class Home extends StatelessWidget {
   const Home({ super.key });
 
-  void openARLiveView(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const Home()), // change to AR Live View page
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -81,10 +105,10 @@ class Home extends StatelessWidget {
             fontSize: 25,
             height: 60,
             width: 260,
-           onPressed: () {
-              openARLiveView(context);
+            onPressed: () {
+              openARLiveView(context); //nakuha ko rin, bwisit
             },
-            ),
+          ),
 
           const SizedBox(height: 20),
 
@@ -97,10 +121,7 @@ class Home extends StatelessWidget {
             height: 60,
             width: 260,
             onPressed: () {
-              Navigator.push(
-                _buildBody(context),
-                MaterialPageRoute(builder: (context) => Home()), //change to Take Photo page
-              );
+              openTakeAPhotoPage(context); //nakuha ko rin, bwisit
             },
           ),
 
@@ -115,10 +136,7 @@ class Home extends StatelessWidget {
             height: 60,
             width: 260,
             onPressed: () {
-              Navigator.push(
-                _buildBody(context),
-                MaterialPageRoute(builder: (context) => Home()), //change to Select Photo page
-              );
+              openSelectAPhotoPage(context); //nakuha ko rin, bwisit
             },
           ),
 
@@ -133,10 +151,7 @@ class Home extends StatelessWidget {
             height: 60,
             width: 260,
             onPressed: () {
-              Navigator.push(
-                _buildBody(context),
-                MaterialPageRoute(builder: (context) => Home()),//change to Color Library page
-              );
+              openColorLibraryPage(context); //nakuha ko rin, bwisit
             },
           ),
 
