@@ -1,13 +1,24 @@
 import 'package:flutter/material.dart';
 
+// import 'package:permission_handler/permission_handler.dart';
+
 // import 'package:truehue/features/color_blindness_type_selector/presentation/pages/color_blindness_type_selector.dart';
 import 'package:truehue/features/welcome/presentation/pages/welcome.dart';
 
 import 'package:truehue/shared/presentation/widgets/button.dart';
 
+// import 'package:truehue/features/ar_live_view/presentation/pages/ar_live_view_page.dart';
+
 
 class Home extends StatelessWidget {
   const Home({ super.key });
+
+  void openARLiveView(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const Home()), // change to AR Live View page
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,18 +81,15 @@ class Home extends StatelessWidget {
             fontSize: 25,
             height: 60,
             width: 260,
-            onPressed: () {
-              Navigator.push(
-                _buildBody(context),
-                MaterialPageRoute(builder: (context) => Home()), //change to AR Live View page
-              );
+           onPressed: () {
+              openARLiveView(context);
             },
-          ),
+            ),
 
           const SizedBox(height: 20),
 
           CustomButton(
-            title: 'Take Photo',
+            title: 'Take a Photo',
             icon: Icons.camera_alt,
             iconSize: 24,
             softWrap: false,
@@ -99,8 +107,8 @@ class Home extends StatelessWidget {
           const SizedBox(height: 20),
 
           CustomButton(
-            title: 'Select Photo',
-            icon: Icons.photo_library,
+            title: 'Select a Photo',
+            icon: Icons.upload_outlined,
             iconSize: 24,
             softWrap: false,
             fontSize: 25,
@@ -118,7 +126,7 @@ class Home extends StatelessWidget {
 
           CustomButton(
             title: 'Color Library',
-            icon: Icons.color_lens,
+            icon: Icons.menu_book,
             iconSize: 24,
             softWrap: false,
             fontSize: 25,
