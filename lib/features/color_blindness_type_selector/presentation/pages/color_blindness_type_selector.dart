@@ -59,7 +59,7 @@ class ColorBlindnessTypeSelector extends StatelessWidget {
             fontSize: 19,
             onPressed: () {
               Navigator.push(
-                _buildBody(context),
+                context,
                 MaterialPageRoute(builder: (context) => Home()),
               );
             },
@@ -75,7 +75,7 @@ class ColorBlindnessTypeSelector extends StatelessWidget {
             fontSize: 19,
             onPressed: () {
               Navigator.push(
-                _buildBody(context),
+                context,
                 MaterialPageRoute(builder: (context) => Home()),
               );
             },
@@ -91,7 +91,7 @@ class ColorBlindnessTypeSelector extends StatelessWidget {
             fontSize: 19,
             onPressed: () {
               Navigator.push(
-                _buildBody(context),
+                context,
                 MaterialPageRoute(builder: (context) => Home()),
               );
             },
