@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'package:truehue/features/ar_live_view/presentation/pages/ar_live_view_page.dart';
-
-
 class CustomButton extends StatelessWidget {
   final String title;
   final VoidCallback onPressed;
@@ -55,10 +52,3 @@ class CustomButton extends StatelessWidget {
         );
       }
     }
-
-void openARLiveView(BuildContext context) {
-  Navigator.push(
-    context,
-    MaterialPageRoute(builder: (context) => const ARLiveViewPage()),
-  );
-}
