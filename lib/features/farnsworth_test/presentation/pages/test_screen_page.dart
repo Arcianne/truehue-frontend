@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:truehue/shared/presentation/widgets/button.dart';
+import 'package:truehue/features/farnsworth_test/presentation/pages/test_result.dart';
+
 
     class TestScreenPage extends StatefulWidget {
       const TestScreenPage({super.key});
@@ -54,6 +57,20 @@ import 'package:flutter/material.dart';
                 _buildTopRow(),
                 const SizedBox(height: 20),
                 _buildBottomRow(),
+                const SizedBox(height: 40),
+                CustomButton(
+                  title: 'Show Result',
+                  fontSize: 20,
+                  width: 200,
+                  height: 60,
+                  softWrap: true,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const TestResultPage()),
+                    );
+                  },
+                ),
               ],
             ),
           ),
