@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truehue/main.dart';
 import 'package:truehue/features/ar_live_view/presentation/pages/ar_live_view_page.dart';
 import 'package:truehue/features/select_a_photo/presentation/pages/select_a_photo_page.dart';
 import 'package:truehue/features/take_a_photo/presentation/pages/take_a_photo_page.dart';
@@ -8,14 +9,14 @@ import 'package:truehue/features/welcome/presentation/pages/welcome.dart';
 void openARLiveView(BuildContext context) {
   Navigator.push(
     context,
-    MaterialPageRoute(builder: (context) => const ARLiveViewPage()),
+    MaterialPageRoute(builder: (context) => ArLiveViewPage(camera: firstCamera)),
   );
 }
 
 void openTakeAPhotoPage(BuildContext context) {
   Navigator.push(
     context,
-    MaterialPageRoute(builder: (context) => const TakeAPhotoPage()),
+    MaterialPageRoute(builder: (context) => TakeAPhotoPage(camera: firstCamera)),
   );
 }
 

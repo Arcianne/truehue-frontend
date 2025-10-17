@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:truehue/config/theme/theme.dart';
 import 'features/home/presentation/pages/home.dart';
+import 'package:camera/camera.dart';
 
-void main() {
+late final CameraDescription firstCamera;
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final cameras = await availableCameras();
+
+  firstCamera = cameras.first;
+
   runApp(const MyApp());
 }
 
