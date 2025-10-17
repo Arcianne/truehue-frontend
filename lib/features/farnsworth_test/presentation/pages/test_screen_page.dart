@@ -1,142 +1,297 @@
 import 'package:flutter/material.dart';
-import 'package:truehue/shared/presentation/widgets/button.dart';
 import 'package:truehue/features/farnsworth_test/presentation/pages/test_result.dart';
 
+class TestScreenPage extends StatefulWidget {
+  const TestScreenPage({super.key});
 
-    class TestScreenPage extends StatefulWidget {
-      const TestScreenPage({super.key});
+  @override
+  State<TestScreenPage> createState() => _TestScreenPageState();
+}
 
-      @override
-      State<TestScreenPage> createState() => _TestScreenPageState();
-    }
+class _TestScreenPageState extends State<TestScreenPage> {
+  final List<Color> _colors = [
+    const Color(0xFF67D4F1),
+    const Color(0xFF65D0E2),
+    const Color(0xFF67D3D6),
+    const Color(0xFF75D5C9),
+    const Color(0xFF6ED0B9),
+    const Color(0xFF8AC78E),
+    const Color(0xFFA3BD4F),
+    const Color(0xFFD0B244),
+    const Color(0xFFDDA149),
+    const Color(0xFFE99569),
+    const Color(0xFFE89784),
+    const Color(0xFFE999A3),
+    const Color(0xFFD59FB4),
+    const Color(0xFFD099C3),
+    const Color(0xFFC8A7DB),
+  ];
 
-    class _TestScreenPageState extends State<TestScreenPage> {
-      final List<Color> availableColors = [
-        Color(0xFF67D4F1),
-        Color(0xFF65D0E2),
-        Color(0xFF67D3D6),
-        Color(0xFF75D5C9),
-        Color(0xFF6ED0B9),
-        Color(0xFF8AC78E),
-        Color(0xFFA3BD4F),
-        Color(0xFFD0B244),
-        Color(0xFFDDA149),
-        Color(0xFFE99569),
-        Color(0xFFE89784),
-        Color(0xFFE999A3),
-        Color(0xFFD59FB4),
-        Color(0xFFD099C3),
-        Color(0xFFC8A7DB),
-      ];
+  late List<Color?> _availableSlots; // placeholders for available colors
+  List<Color?> _placedColors = List.filled(15, null);
+  int? _selectedIndex;
 
-      List<Color?> placedColors = List.filled(15, null);
+  @override
+  void initState() {
+    super.initState();
+    _resetTest();
+  }
 
-      @override
-      Widget build(BuildContext context) {
-        return Scaffold(
-          backgroundColor: const Color(0xFF130E64),
-          appBar: AppBar(
-            backgroundColor: const Color(0xFF130E64),
-            title: const Text('The Farnsworth D-15\nColor Blind Test', style: TextStyle(color: Colors.white)),
-            centerTitle: true,
-          ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                const Text(
-                  '1. Tap a color from the top row.\n'
-                  '2. Tap a spot in the bottom row to place it.\n'
-                  '3. To move a color back, tap a white spot.\n'
-                  '4. Arrange all colors in order.\n'
-                  '5. Tap "Show Result" when you\'re done!',
-                  style: TextStyle(color: Color(0xFFCEF5FF), fontSize: 16),
-                  textAlign: TextAlign.center,
+  void _resetTest() {
+    setState(() {
+      _placedColors = List<Color?>.filled(15, null);
+      _placedColors[0] = _colors[0]; // Reference color fixed
+
+      final shuffledColors = List<Color>.from(_colors.sublist(1))..shuffle();
+      _availableSlots = List<Color?>.filled(shuffledColors.length, null);
+      for (int i = 0; i < shuffledColors.length; i++) {
+        _availableSlots[i] = shuffledColors[i];
+      }
+
+      _selectedIndex = null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final placedCount = _placedColors.where((c) => c != null).length;
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    // Compute circle size (fits 7 per row)
+    final circleSize = (screenWidth - 40 - (8 * 6)) / 7;
+
+    // Rows for placement area
+    final rows = (_placedColors.length / 7).ceil();
+    final gridHeight = (circleSize * rows) + (8 * (rows - 1));
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF130E64),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              // Header
+              Row(
+                children: [
+                  const Text(
+                    'Color Arrangement Test',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.refresh, color: Colors.blue),
+                    onPressed: _resetTest,
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 10),
+
+              // Instructions
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1B167A),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(height: 30),
-                _buildTopRow(),
-                const SizedBox(height: 20),
-                _buildBottomRow(),
-                const SizedBox(height: 40),
-                CustomButton(
-                  title: 'Show Result',
-                  fontSize: 20,
-                  width: 200,
-                  height: 60,
-                  softWrap: true,
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const TestResultPage()),
+                child: const Text(
+                  '1. Tap a color above\n2. Tap a circle below to place it\n3. Arrange in rainbow order',
+                  style: TextStyle(color: Color(0xFFCEF5FF)),
+                ),
+              ),
+
+              const SizedBox(height: 30),
+
+              // --- Available Colors with white placeholders ---
+              SizedBox(
+                height: circleSize * 2 + 8,
+                child: GridView.builder(
+                  physics: const NeverScrollableScrollPhysics(),
+                  shrinkWrap: true,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 7,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                  ),
+                  itemCount: _availableSlots.length,
+                  itemBuilder: (context, index) {
+                    final color = _availableSlots[index];
+                    return GestureDetector(
+                      onTap: color != null
+                          ? () => setState(() => _selectedIndex = index)
+                          : null,
+                      child: Container(
+                        width: circleSize,
+                        height: circleSize,
+                        decoration: BoxDecoration(
+                          color: Colors.white, // white placeholder
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: _selectedIndex == index
+                                ? Colors.blueAccent
+                                : Colors.grey.shade300,
+                            width: _selectedIndex == index ? 3 : 1.5,
+                          ),
+                        ),
+                        child: color != null
+                            ? Container(
+                                width: circleSize,
+                                height: circleSize,
+                                decoration: BoxDecoration(
+                                  color: color,
+                                  shape: BoxShape.circle,
+                                ),
+                              )
+                            : null,
+                      ),
                     );
                   },
                 ),
-              ],
-            ),
-          ),
-        );
-      }
+              ),
 
-      Widget _buildTopRow() {
-        return Wrap(
-          spacing: 5,
-          runSpacing: 5,
-          children: availableColors.map((color) {
-            return Draggable<Color>(
-              data: color,
-              feedback: _buildColorDisk(color, elevation: 4, width: 30, height: 60),
-              childWhenDragging: _buildColorDisk(Colors.transparent, border: true, width: 30, height: 60),
-              child: _buildColorDisk(color, width: 30, height: 60),
-            );
-          }).toList(),
-        );
-      }
+              const SizedBox(height: 30),
 
-      Widget _buildBottomRow() {
-        return Wrap(
-          spacing: 5,
-          runSpacing: 5,
-          children: List.generate(15, (index) {
-            final color = placedColors[index];
-            return DragTarget<Color>(
-              onAcceptWithDetails: (details) {
-                setState(() {
-                  placedColors[index] = details.data;
-                  availableColors.remove(details.data);
-                });
-              },
-              builder: (context, candidateData, rejectedData) {
-                return GestureDetector(
-                  onTap: () {
-                    if (color != null) {
-                      setState(() {
-                        availableColors.add(color);
-                        placedColors[index] = null;
-                      });
-                    }
+              // --- Placement Area ---
+              SizedBox(
+                height: gridHeight,
+                child: GridView.builder(
+                  physics: const NeverScrollableScrollPhysics(),
+                  shrinkWrap: true,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 7,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                    mainAxisExtent: circleSize,
+                  ),
+                  itemCount: _placedColors.length,
+                  itemBuilder: (context, index) {
+                    return Center(
+                      child: GestureDetector(
+                        onTap: () => _handleTap(index),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          width: circleSize,
+                          height: circleSize,
+                          decoration: BoxDecoration(
+                            color: _placedColors[index],
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: index == 0
+                                  ? Colors.blueAccent
+                                  : _placedColors[index] == null
+                                  ? Colors.white30
+                                  : Colors.greenAccent,
+                              width: 2,
+                            ),
+                          ),
+                          child: _placedColors[index] == null
+                              ? const Icon(
+                                  Icons.add,
+                                  color: Colors.white30,
+                                  size: 18,
+                                )
+                              : null,
+                        ),
+                      ),
+                    );
                   },
-                  child: _buildColorDisk(color ?? Colors.white, border: true, width: 30, height: 60),
-                );
-              },
-            );
-          }),
-        );
-      }
+                ),
+              ),
 
-      Widget _buildColorDisk(Color color, {bool border = false, double elevation = 0, double width = 15, double height = 40}) {
-        return Material(
-          elevation: elevation,
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-            width: width,
-            height: height,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(10),
-              border: border ? Border.all(color: Colors.grey, width: 1) : null,
-            ),
+              const SizedBox(height: 20),
+
+              // Progress
+              Text(
+                '$placedCount/15 colors placed',
+                style: const TextStyle(color: Colors.white70),
+              ),
+
+              const SizedBox(height: 10),
+
+              LinearProgressIndicator(
+                value: placedCount / 15,
+                minHeight: 6,
+                backgroundColor: const Color(0xFF1B167A),
+                color: Colors.blueAccent,
+                borderRadius: BorderRadius.circular(10),
+              ),
+
+              const Spacer(),
+
+              // Submit button
+              ElevatedButton(
+                onPressed: placedCount == 15 ? _showResults : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFCEF5FF),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 40,
+                    vertical: 15,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'View Results',
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+            ],
           ),
-        );
+        ),
+      ),
+    );
+  }
+
+  void _handleTap(int slotIndex) {
+    if (slotIndex == 0) return; // Can't move reference color
+
+    setState(() {
+      // Placing color
+      if (_selectedIndex != null && _placedColors[slotIndex] == null) {
+        final colorToPlace = _availableSlots[_selectedIndex!];
+        _placedColors[slotIndex] = colorToPlace;
+        _availableSlots[_selectedIndex!] = null; // leave placeholder empty
+        _selectedIndex = null;
       }
-    }
-  //
+      // Removing color
+      else if (_placedColors[slotIndex] != null) {
+        final colorToRemove = _placedColors[slotIndex]!;
+        _placedColors[slotIndex] = null;
+
+        // return to first empty available slot
+        final emptyIndex = _availableSlots.indexOf(null);
+        if (emptyIndex != -1) {
+          _availableSlots[emptyIndex] = colorToRemove;
+        }
+      }
+    });
+  }
+
+  void _showResults() {
+    final userOrder = [
+      _colors[0],
+      ..._placedColors.sublist(1).whereType<Color>(),
+    ];
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            TestResultPage(userColorOrder: userOrder, referenceColors: _colors),
+      ),
+    );
+  }
+}

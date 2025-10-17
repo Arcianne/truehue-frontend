@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'package:truehue/config/theme/theme.dart';
 import 'features/home/presentation/pages/home.dart';
 
 void main() {
@@ -15,10 +15,9 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'TrueHue',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        fontFamily: 'Bellota',
-      ),
+      themeMode: ThemeMode.dark,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
       home: const Home(),
     );
   }

@@ -1,7 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:truehue/shared/presentation/widgets/nav_button.dart';
-
 // import 'package:permission_handler/permission_handler.dart';
+import 'package:truehue/features/ar_live_view/presentation/pages/ar_live_view_page.dart';
+import 'package:truehue/features/select_a_photo/presentation/pages/select_a_photo_page.dart';
+import 'package:truehue/features/take_a_photo/presentation/pages/take_a_photo_page.dart';
+
+void openARLiveView(BuildContext context) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(builder: (context) => const ARLiveViewPage()),
+  );
+}
+
+void openTakeAPhotoPage(BuildContext context) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(builder: (context) => const TakeAPhotoPage()),
+  );
+}
+
+void openSelectAPhotoPage(BuildContext context) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(builder: (context) => const SelectAPhotoPage()),
+  );
+}
+
+void openColorLibraryPage(BuildContext context) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(builder: (context) => const ColorLibraryPage()),
+  );
+}
 
 class ColorLibraryPage extends StatelessWidget {
   const ColorLibraryPage({super.key});
@@ -31,7 +61,7 @@ class ColorLibraryPage extends StatelessWidget {
           icon: Icons.upload_outlined,
           label: '',
           onTap: () {
-            // Navigate to Select a photo
+            openSelectAPhotoPage(context); // Navigate to Select a photo
           },
         ),
         NavButton(
@@ -39,7 +69,7 @@ class ColorLibraryPage extends StatelessWidget {
           label: '',
           isSelected: false,
           onTap: () {
-            // Navigate to Take a photo
+            openTakeAPhotoPage(context); // Navigate to Take a photo
           },
         ),
         NavButton(
@@ -47,7 +77,7 @@ class ColorLibraryPage extends StatelessWidget {
           label: '',
           isSelected: false,
           onTap: () {
-            // navigate to ar live view
+            openARLiveView(context);// navigate to ar live view
           },
         ),
         NavButton(
@@ -55,7 +85,7 @@ class ColorLibraryPage extends StatelessWidget {
           label: '',
           isSelected: true,
           onTap: () {
-            // Navigate to color library
+            // Already in color library
           },
         ),
         NavButton(
