@@ -6,10 +6,19 @@ import 'package:truehue/features/ar_live_view/presentation/pages/ar_live_view_pa
 import 'package:truehue/features/take_a_photo/presentation/pages/take_a_photo_page.dart';
 import 'package:truehue/features/color_library/presentation/pages/color_library_page.dart';
 
-void openARLiveView(BuildContext context) {
+void openARLiveView(
+  BuildContext context,
+  bool assistiveMode, {
+  String? simulationType,
+}) {
   Navigator.push(
     context,
-    MaterialPageRoute(builder: (context) => ArLiveViewPage(camera: firstCamera)),
+    MaterialPageRoute(
+      builder: (context) => ArLiveViewPage(
+        assistiveMode: assistiveMode,
+        simulationType: simulationType,
+      ),
+    ),
   );
 }
 
@@ -74,12 +83,12 @@ class SelectAPhotoPage extends StatelessWidget {
                 openTakeAPhotoPage(context); // Navigate to Take a photo
               },
             ),
+
             NavButton(
               icon: Icons.visibility,
               label: '',
-              isSelected: false,
               onTap: () {
-                openARLiveView(context); // Navigate to  the ar live view
+                openARLiveView(context, false); // or true, depending on what you want
               },
             ),
             NavButton(

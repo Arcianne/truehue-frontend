@@ -6,10 +6,19 @@ import 'package:truehue/features/ar_live_view/presentation/pages/ar_live_view_pa
 import 'package:truehue/features/select_a_photo/presentation/pages/select_a_photo_page.dart';
 import 'package:truehue/features/take_a_photo/presentation/pages/take_a_photo_page.dart';
 
-void openARLiveView(BuildContext context) {
+void openARLiveView(
+  BuildContext context,
+  bool assistiveMode, {
+  String? simulationType,
+}) {
   Navigator.push(
     context,
-    MaterialPageRoute(builder: (context) => ArLiveViewPage(camera: firstCamera)),
+    MaterialPageRoute(
+      builder: (context) => ArLiveViewPage(
+        assistiveMode: assistiveMode,
+        simulationType: simulationType,
+      ),
+    ),
   );
 }
 
@@ -74,13 +83,16 @@ class ColorLibraryPage extends StatelessWidget {
           },
         ),
         NavButton(
-          icon: Icons.visibility,
-          label: '',
-          isSelected: false,
-          onTap: () {
-            openARLiveView(context);// navigate to ar live view
-          },
-        ),
+              icon: Icons.visibility,
+              label: '',
+              onTap: () {
+                openARLiveView(
+                  context,
+                  false,
+                ); // or true, depending on what you want
+              },
+            ),
+
         NavButton(
           icon: Icons.menu_book,
           label: '',

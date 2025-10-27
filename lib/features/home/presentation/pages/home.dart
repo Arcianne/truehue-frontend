@@ -6,10 +6,19 @@ import 'package:truehue/features/take_a_photo/presentation/pages/take_a_photo_pa
 import 'package:truehue/features/color_library/presentation/pages/color_library_page.dart';
 import 'package:truehue/features/welcome/presentation/pages/welcome.dart';
 
-void openARLiveView(BuildContext context) {
+void openARLiveView(
+  BuildContext context,
+  bool assistiveMode, {
+  String? simulationType,
+}) {
   Navigator.push(
     context,
-    MaterialPageRoute(builder: (context) => ArLiveViewPage(camera: firstCamera)),
+    MaterialPageRoute(
+      builder: (context) => ArLiveViewPage(
+        assistiveMode: assistiveMode,
+        simulationType: simulationType,
+      ),
+    ),
   );
 }
 
@@ -83,7 +92,7 @@ class Home extends StatelessWidget {
               icon: const Icon(Icons.visibility, size: 24),
               label: const Text('AR Live View', style: TextStyle(fontSize: 25)),
               style: ElevatedButton.styleFrom(minimumSize: const Size(260, 60)),
-              onPressed: () => openARLiveView(context),
+              onPressed: () => openARLiveView(context, true),
             ),
 
             const SizedBox(height: 20),
