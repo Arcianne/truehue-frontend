@@ -5,6 +5,7 @@ import 'package:image/image.dart' as img;
 import 'package:gal/gal.dart';
 
 import 'package:truehue/main.dart';
+import 'package:truehue/features/filters/presentation/pages/filter_page.dart';
 import 'package:truehue/core/algorithm/knn_color_matcher.dart';
 import 'package:truehue/shared/presentation/widgets/nav_button.dart';
 import 'package:truehue/features/ar_live_view/presentation/pages/ar_live_view_page.dart';
@@ -157,6 +158,31 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
       _colorName = "";
       _colorFamily = "";
     });
+  }
+
+  Future<void> _openFilterPage() async {
+    if (_capturedImage == null) return;
+
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => FilterPage(
+          imagePath: _capturedImage!.path,
+          sourcePageTitle: "Take A Photo",
+        ),
+      ),
+    );
+
+    // If a filtered image path is returned (from "Freeze"), update the display
+    if (result != null && result is String) {
+      final bytes = await File(result).readAsBytes();
+      setState(() {
+        _capturedImage = XFile(result);
+        _decodedImage = img.decodeImage(bytes);
+        _tapPosition = null;
+        _colorName = "";
+      });
+    }
   }
 
   void _handleTap(TapDownDetails details) {
@@ -409,91 +435,136 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
                       ],
                     ),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // Retake and Save buttons (only show when photo is captured)
-                      if (_capturedImage != null) ...[
-                        ElevatedButton.icon(
-                          onPressed: _resetToCamera,
-                          icon: const Icon(Icons.refresh),
-                          label: const Text(
-                            'RETAKE',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Colors.black,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        ElevatedButton.icon(
-                          onPressed: _isSaving ? null : _saveImage,
-                          icon: _isSaving
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.black,
+                  child: _capturedImage != null
+                      ? Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            // Filter button
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                ),
+                                child: ElevatedButton.icon(
+                                  onPressed: _openFilterPage,
+                                  icon: const Icon(Icons.filter_alt, size: 18),
+                                  label: const Text(
+                                    'FILTER',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
-                                )
-                              : const Icon(Icons.download),
-                          label: Text(
-                            _isSaving ? 'SAVING...' : 'SAVE',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    foregroundColor: Colors.black,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 12,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(30),
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Colors.black,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
+                            // Retake button
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                ),
+                                child: ElevatedButton.icon(
+                                  onPressed: _resetToCamera,
+                                  icon: const Icon(Icons.refresh, size: 18),
+                                  label: const Text(
+                                    'RETAKE',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    foregroundColor: Colors.black,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 12,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(30),
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
+                            // Save button
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                ),
+                                child: ElevatedButton.icon(
+                                  onPressed: _isSaving ? null : _saveImage,
+                                  icon: _isSaving
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.black,
+                                          ),
+                                        )
+                                      : const Icon(Icons.download, size: 18),
+                                  label: Text(
+                                    _isSaving ? 'SAVING...' : 'SAVE',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    foregroundColor: Colors.black,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 12,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(30),
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                      ],
-
-                      // Shutter button (only show when no photo is captured)
-                      if (_capturedImage == null)
-                        GestureDetector(
-                          onTap: _takePicture,
-                          child: Container(
-                            width: 80,
-                            height: 80,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 4),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(6),
-                              child: Container(
-                                decoration: const BoxDecoration(
+                          ],
+                        )
+                      : Center(
+                          child: GestureDetector(
+                            onTap: _takePicture,
+                            child: Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
                                   color: Colors.white,
-                                  shape: BoxShape.circle,
+                                  width: 4,
+                                ),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(6),
+                                child: Container(
+                                  decoration: const BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
-                    ],
-                  ),
                 ),
               ),
             ],

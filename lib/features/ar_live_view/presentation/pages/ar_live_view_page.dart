@@ -1,11 +1,11 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:flutter_tts/flutter_tts.dart';
-
-import 'package:truehue/core/algorithm/knn_color_matcher.dart';
 import 'package:truehue/main.dart';
+
 import 'package:truehue/shared/presentation/widgets/nav_button.dart';
 import 'package:truehue/features/take_a_photo/presentation/pages/take_a_photo_page.dart';
 import 'package:truehue/features/select_a_photo/presentation/pages/select_a_photo_page.dart';
@@ -50,6 +50,8 @@ void openColorLibraryPage(BuildContext context) {
   );
 }
 
+// ------------------- AR LIVE VIEW PAGE -------------------
+
 class ArLiveViewPage extends StatefulWidget {
   final bool assistiveMode;
   final String? simulationType;
@@ -71,12 +73,29 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
   bool _isProcessing = false;
   bool _isScanning = false;
   bool _ttsReady = false;
+  bool _showInstructions = true;
+
   Color _sampledColor = Colors.transparent;
   String _colorName = "";
-  String _colorFamily = "";
   int _r = 0, _g = 0, _b = 0;
-  // DateTime? _lastSpeechTime;
-  bool _showInstructions = true;
+  String _previousColorName = "";
+  bool _isSpeakingContinuously = false;
+  Timer? _ttsTimer;
+
+  // Improved color palette with better RGB values for accuracy
+  final List<Map<String, Color>> simplifiedColors = [
+    {'red': const Color(0xFFE53935)}, // Pure red
+    {'orange': const Color(0xFFFF6F00)}, // Pure orange
+    {'yellow': const Color(0xFFFDD835)}, // Bright yellow
+    {'green': const Color(0xFF43A047)}, // True green
+    {'blue': const Color(0xFF1E88E5)}, // Clear blue
+    {'purple': const Color(0xFF8E24AA)}, // True purple
+    {'pink': const Color(0xFFEC407A)}, // Bright pink
+    {'brown': const Color(0xFF6D4C41)}, // Natural brown
+    {'black': const Color(0xFF212121)}, // Near black
+    {'white': const Color(0xFFFAFAFA)}, // Near white
+    {'gray': const Color(0xFF9E9E9E)}, // Middle gray
+  ];
 
   @override
   void initState() {
@@ -88,6 +107,7 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
     });
   }
 
+  // ---------------- TTS (FIXED) ----------------
   Future<void> _initializeTts() async {
     try {
       await _tts.setLanguage("en-US");
@@ -96,7 +116,7 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
       await _tts.setPitch(1.0);
 
       _tts.setCompletionHandler(() {
-        debugPrint("✅ Speech completed");
+        debugPrint("✅ TTS completed");
       });
 
       _tts.setErrorHandler((msg) {
@@ -111,6 +131,52 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
     }
   }
 
+  void _toggleContinuousTTS() async {
+    if (!_ttsReady || !widget.assistiveMode) {
+      debugPrint("❌ TTS not ready or not in assistive mode");
+      return;
+    }
+
+    if (_isSpeakingContinuously) {
+      debugPrint("🔇 Stopping continuous TTS");
+      _ttsTimer?.cancel();
+      await _tts.stop();
+      setState(() => _isSpeakingContinuously = false);
+    } else {
+      debugPrint("🔊 Starting continuous TTS");
+      setState(() => _isSpeakingContinuously = true);
+      _previousColorName = "";
+
+      // Speak immediately if color is available
+      if (_colorName.isNotEmpty) {
+        await _speakColor(_colorName);
+      }
+
+      _ttsTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+        if (!_isSpeakingContinuously || !mounted) return;
+        if (_colorName.isNotEmpty && _colorName != _previousColorName) {
+          await _speakColor(_colorName);
+        }
+      });
+    }
+  }
+
+  Future<void> _speakColor(String color) async {
+    if (!_ttsReady) return;
+
+    _previousColorName = color;
+    debugPrint("🔊 Speaking: $color");
+
+    try {
+      await _tts.stop();
+      await Future.delayed(const Duration(milliseconds: 50));
+      await _tts.speak(color);
+    } catch (e) {
+      debugPrint("❌ Error speaking: $e");
+    }
+  }
+
+  // ---------------- CAMERA ----------------
   Future<void> _initializeCamera() async {
     try {
       final cameras = await availableCameras();
@@ -119,6 +185,7 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
         camera,
         ResolutionPreset.medium,
         imageFormatGroup: ImageFormatGroup.yuv420,
+        enableAudio: false,
       );
       _initializeControllerFuture = _controller!.initialize();
       setState(() {});
@@ -133,33 +200,21 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
       setState(() {
         _isScanning = false;
         _colorName = "";
-        _colorFamily = "";
         _sampledColor = Colors.transparent;
       });
+
+      // Stop continuous TTS when scanning stops
+      if (_isSpeakingContinuously) {
+        _ttsTimer?.cancel();
+        await _tts.stop();
+        setState(() => _isSpeakingContinuously = false);
+      }
     } else {
       if (_controller != null && !_controller!.value.isStreamingImages) {
         setState(() => _isScanning = true);
         await _controller!.startImageStream(_processCameraImage);
       }
     }
-  }
-
-  Future<void> _speakColor() async {
-    if (!widget.assistiveMode || !_ttsReady) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Text-to-speech not available'),
-            duration: Duration(seconds: 1),
-          ),
-        );
-      }
-      return;
-    }
-
-    await _tts.stop();
-    await _tts.speak(_colorName);
-    debugPrint("🔊 Speaking: $_colorName");
   }
 
   Future<void> _processCameraImage(CameraImage image) async {
@@ -170,31 +225,123 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
       final rgb = _convertYUV420ToImage(image);
       if (rgb == null) return;
 
-      final sampleX = rgb.width ~/ 2;
-      final sampleY = rgb.height ~/ 2;
+      final centerX = rgb.width ~/ 2;
+      final centerY = rgb.height ~/ 2;
+      final regionSize = 10; // Even larger for stability
 
-      final pixel = rgb.getPixel(sampleX, sampleY);
+      List<int> reds = [];
+      List<int> greens = [];
+      List<int> blues = [];
 
-      final r = pixel.r.toInt();
-      final g = pixel.g.toInt();
-      final b = pixel.b.toInt();
+      // Sample center region
+      for (int dy = -regionSize; dy <= regionSize; dy++) {
+        for (int dx = -regionSize; dx <= regionSize; dx++) {
+          final x = (centerX + dx).clamp(0, rgb.width - 1);
+          final y = (centerY + dy).clamp(0, rgb.height - 1);
+          final pixel = rgb.getPixel(x, y);
 
-      final detectedColor = Color.fromARGB(255, r, g, b);
+          reds.add(pixel.r.toInt());
+          greens.add(pixel.g.toInt());
+          blues.add(pixel.b.toInt());
+        }
+      }
 
-      // Use ColorMatcher KNN algorithm (k=5 for best accuracy)
-      final name = ColorMatcher.getColorName(r, g, b, k: 5);
-      final family = ColorMatcher.getColorFamily(r, g, b);
+      // Use median for better accuracy
+      final avgR = _median(reds);
+      final avgG = _median(greens);
+      final avgB = _median(blues);
 
-      debugPrint("🎨 Detected: $name ($family) - RGB($r, $g, $b)");
+      // Apply adaptive brightness boost for dim lighting
+      final brightness = 0.299 * avgR + 0.587 * avgG + 0.114 * avgB;
+      double boostFactor = 1.0;
 
-      setState(() {
-        _sampledColor = detectedColor;
-        _colorName = name;
-        _colorFamily = family;
-        _r = r;
-        _g = g;
-        _b = b;
-      });
+      if (brightness < 30) {
+        boostFactor = 3.0; // Strong boost for very dim
+      } else if (brightness < 60) {
+        boostFactor = 2.2; // Medium boost
+      } else if (brightness < 100) {
+        boostFactor = 1.5; // Light boost
+      }
+
+      // Apply boost while preserving color ratios
+      int boostedR = (avgR * boostFactor).clamp(0, 255).toInt();
+      int boostedG = (avgG * boostFactor).clamp(0, 255).toInt();
+      int boostedB = (avgB * boostFactor).clamp(0, 255).toInt();
+
+      // Enhance saturation for better color detection
+      final pixelColor = Color.fromARGB(255, boostedR, boostedG, boostedB);
+      final hsl = HSLColor.fromColor(pixelColor);
+
+      // Boost saturation for dim colors
+      double newSaturation = hsl.saturation;
+      if (brightness < 80 && hsl.saturation > 0.1) {
+        newSaturation = (hsl.saturation * 1.8).clamp(0.0, 1.0);
+      }
+
+      final enhancedHsl = hsl.withSaturation(newSaturation);
+
+      String matchedColorName;
+      Color matchedColor;
+
+      // More aggressive thresholds to avoid gray/black/brown bias
+      if (hsl.lightness < 0.12 && hsl.saturation < 0.15) {
+        // Only truly dark colors are black
+        matchedColorName = 'black';
+        matchedColor = simplifiedColors.firstWhere(
+          (c) => c.containsKey('black'),
+        )['black']!;
+      } else if (hsl.lightness > 0.88) {
+        // Only very bright colors are white
+        matchedColorName = 'white';
+        matchedColor = simplifiedColors.firstWhere(
+          (c) => c.containsKey('white'),
+        )['white']!;
+      } else if (hsl.saturation < 0.12 &&
+          hsl.lightness > 0.25 &&
+          hsl.lightness < 0.75) {
+        // Only neutral mid-tones are gray
+        matchedColorName = 'gray';
+        matchedColor = simplifiedColors.firstWhere(
+          (c) => c.containsKey('gray'),
+        )['gray']!;
+      } else {
+        // Use enhanced color for chromatic matching
+        double minDistance = double.infinity;
+        matchedColorName = 'red';
+        matchedColor = simplifiedColors.first.values.first;
+
+        for (var colorMap in simplifiedColors) {
+          final entry = colorMap.entries.first;
+          if (entry.key == 'black' ||
+              entry.key == 'white' ||
+              entry.key == 'gray') {
+            continue;
+          }
+
+          final targetColor = entry.value;
+          // Use enhanced color for better dim light performance
+          final distance = _colorDistanceHSL(
+            enhancedHsl,
+            HSLColor.fromColor(targetColor),
+          );
+
+          if (distance < minDistance) {
+            minDistance = distance;
+            matchedColorName = entry.key;
+            matchedColor = targetColor;
+          }
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _sampledColor = matchedColor;
+          _colorName = matchedColorName;
+          _r = avgR;
+          _g = avgG;
+          _b = avgB;
+        });
+      }
     } catch (e) {
       debugPrint('❌ Error processing frame: $e');
     } finally {
@@ -202,11 +349,37 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
     }
   }
 
+  // HSL-based color distance for better dim light matching
+  double _colorDistanceHSL(HSLColor c1, HSLColor c2) {
+    // Hue distance (circular)
+    double hueDiff = (c1.hue - c2.hue).abs();
+    if (hueDiff > 180) hueDiff = 360 - hueDiff;
+    hueDiff = hueDiff / 180.0; // Normalize to 0-1
+
+    // Saturation and lightness differences
+    double satDiff = (c1.saturation - c2.saturation).abs();
+    double lightDiff = (c1.lightness - c2.lightness).abs();
+
+    // Weight hue heavily for chromatic colors
+    return sqrt(
+      hueDiff * hueDiff * 3.0 + // Hue is most important
+          satDiff * satDiff * 0.5 +
+          lightDiff * lightDiff * 0.5,
+    );
+  }
+
+  int _median(List<int> values) {
+    if (values.isEmpty) return 0;
+    values.sort();
+    int mid = values.length ~/ 2;
+    if (values.length % 2 == 1) return values[mid];
+    return ((values[mid - 1] + values[mid]) / 2).round();
+  }
+
   img.Image? _convertYUV420ToImage(CameraImage image) {
     try {
       final width = image.width;
       final height = image.height;
-
       final imgData = img.Image(width: width, height: height);
 
       final uvRowStride = image.planes[1].bytesPerRow;
@@ -221,19 +394,15 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
         for (int x = 0; x < width; x++) {
           final uvCol = (x / 2).floor();
           final uvIndex = uvRow * uvRowStride + uvCol * uvPixelStride;
-
           final Y = yBuffer[yp];
           final U = uBuffer[uvIndex];
           final V = vBuffer[uvIndex];
-
           int r = (Y + 1.402 * (V - 128)).round();
           int g = (Y - 0.344136 * (U - 128) - 0.714136 * (V - 128)).round();
           int b = (Y + 1.772 * (U - 128)).round();
-
           r = r.clamp(0, 255);
           g = g.clamp(0, 255);
           b = b.clamp(0, 255);
-
           imgData.setPixelRgb(x, y, r, g, b);
           yp++;
         }
@@ -245,51 +414,15 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
     }
   }
 
-  String _getModeName() {
-    if (widget.assistiveMode) {
-      return "Assistive Mode";
-    } else {
-      switch (widget.simulationType) {
-        case 'deuteranopia':
-          return "Deuteranopia Simulation";
-        case 'tritanopia':
-          return "Tritanopia Simulation";
-        case 'protanopia':
-        default:
-          return "Protanopia Simulation";
-      }
-    }
+  @override
+  void dispose() {
+    _controller?.dispose();
+    _ttsTimer?.cancel();
+    _tts.stop();
+    super.dispose();
   }
 
-  Color _getFamilyColor(String family) {
-    switch (family.toLowerCase()) {
-      case 'red':
-        return Colors.red;
-      case 'orange':
-        return Colors.orange;
-      case 'yellow':
-        return Colors.amber;
-      case 'green':
-        return Colors.green;
-      case 'blue':
-        return Colors.blue;
-      case 'purple':
-        return Colors.purple;
-      case 'pink':
-        return Colors.pink;
-      case 'brown':
-        return Colors.brown;
-      case 'gray':
-        return Colors.grey;
-      case 'white':
-        return Colors.black54;
-      case 'black':
-        return Colors.black87;
-      default:
-        return Colors.grey;
-    }
-  }
-
+  // ---------------- COLOR FILTER / SIMULATION ----------------
   ColorFilter _getColorFilter(String type) {
     switch (type) {
       case 'deuteranopia':
@@ -365,6 +498,7 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
     }
   }
 
+  // ---------------- BUILD ----------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -375,7 +509,6 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
           if (snapshot.connectionState == ConnectionState.done) {
             return Stack(
               children: [
-                // Camera preview
                 Positioned.fill(
                   child: widget.assistiveMode
                       ? CameraPreview(_controller!)
@@ -386,74 +519,32 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
                           child: CameraPreview(_controller!),
                         ),
                 ),
-
-                // Top bar with color count badge
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
+                // Center circle
+                Align(
+                  alignment: Alignment.center,
                   child: Container(
-                    padding: EdgeInsets.only(
-                      top: MediaQuery.of(context).padding.top + 8,
-                      bottom: 16,
-                      left: 16,
-                      right: 16,
-                    ),
+                    width: 120,
+                    height: 120,
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withValues(alpha: 0.7),
-                          Colors.transparent,
-                        ],
+                      border: Border.all(
+                        color: _isScanning ? Colors.green : Colors.white,
+                        width: 3,
                       ),
+                      borderRadius: BorderRadius.circular(60),
                     ),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(
-                            Icons.arrow_back,
-                            color: Colors.white,
-                          ),
-                          onPressed: () => Navigator.pop(context),
+                    child: Center(
+                      child: Container(
+                        width: 20,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color: _isScanning ? Colors.green : Colors.white,
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _getModeName(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        // Color database info badge
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            "${ColorMatcher.colorCount} colors",
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
-
-                // Color card at TOP (when scanning)
+                // Color card at top
                 if (_isScanning && _colorName.isNotEmpty)
                   Positioned(
                     top: MediaQuery.of(context).padding.top + 70,
@@ -466,7 +557,7 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.3),
+                            color: Colors.black.withOpacity(0.3),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
@@ -474,7 +565,6 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
                       ),
                       child: Row(
                         children: [
-                          // Color circle
                           Container(
                             width: 60,
                             height: 60,
@@ -488,84 +578,56 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
                             ),
                           ),
                           const SizedBox(width: 16),
-                          // Color info
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  _colorName,
+                                  _colorName.toUpperCase(),
                                   style: const TextStyle(
-                                    fontSize: 18,
+                                    fontSize: 20,
                                     fontWeight: FontWeight.bold,
                                     color: Colors.black,
                                   ),
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: _getFamilyColor(_colorFamily),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        _colorFamily,
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      "Family",
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey.shade600,
-                                      ),
-                                    ),
-                                  ],
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   "RGB: $_r, $_g, $_b",
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.grey.shade500,
+                                    color: Colors.grey.shade600,
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                          // Audio button (tap to hear)
-                          if (widget.assistiveMode)
+                          if (widget.assistiveMode && _ttsReady)
                             IconButton(
-                              onPressed: _speakColor,
                               icon: Icon(
-                                _ttsReady ? Icons.volume_up : Icons.volume_off,
-                                color: _ttsReady ? Colors.blue : Colors.grey,
+                                _isSpeakingContinuously
+                                    ? Icons.volume_off
+                                    : Icons.volume_up,
+                                color: _isSpeakingContinuously
+                                    ? Colors.red
+                                    : Colors.blue,
                                 size: 28,
                               ),
-                              tooltip: "Tap to hear color",
+                              onPressed: _toggleContinuousTTS,
+                              tooltip: _isSpeakingContinuously
+                                  ? 'Stop audio'
+                                  : 'Start audio',
                             ),
                         ],
                       ),
                     ),
                   ),
-
                 // Instructions overlay
                 if (_showInstructions)
                   Positioned.fill(
                     child: GestureDetector(
                       onTap: () => setState(() => _showInstructions = false),
                       child: Container(
-                        color: Colors.black.withValues(alpha: 0.8),
+                        color: Colors.black.withOpacity(0.8),
                         child: Center(
                           child: Padding(
                             padding: const EdgeInsets.all(32),
@@ -594,8 +656,8 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
                                 const SizedBox(height: 16),
                                 Text(
                                   widget.assistiveMode
-                                      ? "1. Tap START to begin\n2. Point the center circle at objects\n3. See color name appear at top\n4. Tap speaker icon to hear color\n\n✨ Using 750+ color database with KNN"
-                                      : "1. This shows how ${widget.simulationType} affects vision\n2. Tap START to identify colors\n3. Move camera to explore\n\n✨ Using advanced color matching",
+                                      ? "1. Tap START to begin\n2. Point the center circle at objects\n3. See color name appear at top\n4. Tap speaker icon to hear color"
+                                      : "1. This shows how ${widget.simulationType} affects vision\n2. Tap START to identify colors\n3. Move camera to explore",
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 16,
@@ -618,34 +680,7 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
                       ),
                     ),
                   ),
-
-                // Center target circle
-                Align(
-                  alignment: Alignment.center,
-                  child: Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: _isScanning ? Colors.green : Colors.white,
-                        width: 3,
-                      ),
-                      borderRadius: BorderRadius.circular(60),
-                    ),
-                    child: Center(
-                      child: Container(
-                        width: 20,
-                        height: 20,
-                        decoration: BoxDecoration(
-                          color: _isScanning ? Colors.green : Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                // Bottom controls
+                // Bottom scanning button
                 Positioned(
                   bottom: 0,
                   left: 0,
@@ -662,7 +697,7 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
                         begin: Alignment.bottomCenter,
                         end: Alignment.topCenter,
                         colors: [
-                          Colors.black.withValues(alpha: 0.8),
+                          Colors.black.withOpacity(0.8),
                           Colors.transparent,
                         ],
                       ),
@@ -700,7 +735,7 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
           }
         },
       ),
-      // Bottom Navigation Bar
+
       bottomNavigationBar: Container(
         color: const Color.fromARGB(47, 3, 0, 52),
         padding: const EdgeInsets.symmetric(vertical: 10),
@@ -710,7 +745,8 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
             NavButton(
               icon: Icons.upload_outlined,
               label: '',
-              onTap: () => openSelectAPhotoPage(context),
+              isSelected: true,
+              onTap: () {},
             ),
             NavButton(
               icon: Icons.camera_alt,
@@ -720,8 +756,7 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
             NavButton(
               icon: Icons.visibility,
               label: '',
-              isSelected: true,
-              onTap: () {},
+              onTap: () => Navigator.pop(context),
             ),
             NavButton(
               icon: Icons.menu_book,
@@ -737,12 +772,5 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    _tts.stop();
-    super.dispose();
   }
 }
