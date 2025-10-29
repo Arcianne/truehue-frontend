@@ -1,16 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:truehue/features/farnsworth_test/presentation/pages/test_screen_page.dart';
-import 'package:truehue/features/ar_live_view/presentation/pages/ar_live_view_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsPage extends StatefulWidget {
-  final String initialMode;
-  final String initialType;
-
-  const SettingsPage({
-    super.key,
-    this.initialMode = 'Assistive',
-    this.initialType = 'Normal',
-  });
+  const SettingsPage({super.key});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -30,8 +22,21 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
-    _selectedMode = widget.initialMode;
-    _selectedType = widget.initialType;
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _selectedMode = prefs.getString('liveARMode') ?? 'Assistive';
+      _selectedType = prefs.getString('colorBlindnessType') ?? 'Normal';
+    });
+  }
+
+  Future<void> _savePreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('liveARMode', _selectedMode);
+    await prefs.setString('colorBlindnessType', _selectedType);
   }
 
   @override
@@ -93,7 +98,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 const SizedBox(height: 10),
                 _buildModeRadio('Simulation', 'Show how I see to others'),
                 const SizedBox(height: 40),
-                // Dropdown
+                // Dropdown for colorblindness type
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   decoration: BoxDecoration(
@@ -116,78 +121,27 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     onChanged: (String? newValue) {
                       if (newValue != null) {
-                        setState(() {
-                          _selectedType = newValue;
-                        });
+                        setState(() => _selectedType = newValue);
+                        _savePreferences();
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Settings saved!'),
+                            duration: Duration(seconds: 1),
+                          ),
+                        );
                       }
                     },
-                    items: _colorBlindTypes.map<DropdownMenuItem<String>>((
-                      String value,
-                    ) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(value),
-                      );
-                    }).toList(),
-                  ),
-                ),
-                const SizedBox(height: 30),
-                // Take test again
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const TestScreenPage(),
-                        ),
-                      );
-                    },
-                    child: const Text("Take Farnsworth Test Again"),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                // ✅ AR Live button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF3B82F6),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    onPressed: () {
-                      final assistive = _selectedMode == 'Assistive';
-                      final type = _selectedType.toLowerCase();
-
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ArLiveViewPage(
-                            assistiveMode: assistive,
-                            simulationType: assistive
-                                ? null
-                                : type == 'normal'
-                                ? 'protanopia'
-                                : type,
+                    items: _colorBlindTypes
+                        .map(
+                          (value) => DropdownMenuItem<String>(
+                            value: value,
+                            child: Text(value),
                           ),
-                        ),
-                      );
-                    },
-                    child: const Text(
-                      "Open AR Live View",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                        )
+                        .toList(),
                   ),
                 ),
-                const SizedBox(height: 50),
               ],
             ),
           ),
@@ -204,9 +158,15 @@ class _SettingsPageState extends State<SettingsPage> {
         activeColor: const Color(0xFFCEF5FF),
         onChanged: (value) {
           if (value != null) {
-            setState(() {
-              _selectedMode = value;
-            });
+            setState(() => _selectedMode = value);
+            _savePreferences();
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Settings saved!'),
+                duration: Duration(seconds: 1),
+              ),
+            );
           }
         },
       ),

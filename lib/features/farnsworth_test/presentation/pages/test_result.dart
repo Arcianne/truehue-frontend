@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:truehue/features/home/presentation/pages/home.dart';
+import 'package:truehue/features/onboarding/presentation/pages/mode_selection_page.dart';
 import 'dart:math';
 
 class TestResultPage extends StatelessWidget {
@@ -38,7 +38,9 @@ class TestResultPage extends StatelessWidget {
             ElevatedButton(
               onPressed: () => Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const Home()),
+                MaterialPageRoute(
+                  builder: (context) => const ModeSelectionPage(),
+                ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFCEF5FF),
@@ -52,7 +54,7 @@ class TestResultPage extends StatelessWidget {
                 ),
               ),
               child: const Text(
-                'Go to Home',
+                'Next',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
@@ -243,12 +245,14 @@ class ColorVisionDiagnosis {
     return -1;
   }
 
+  // More tolerant error detection: ignore small adjacent mistakes by requiring a bigger jump
   List<int> _computeErrors(List<int> userOrder) {
     final List<int> errors = [];
     for (int i = 1; i < userOrder.length; i++) {
       final prev = userOrder[i - 1];
       final curr = userOrder[i];
-      if (prev != -1 && curr != -1 && (curr - prev).abs() >= 2) {
+      // require a jump of 3 or more positions to count as an error (reduces false positives)
+      if (prev != -1 && curr != -1 && (curr - prev).abs() >= 3) {
         if (!errors.contains(prev)) errors.add(prev);
         if (!errors.contains(curr)) errors.add(curr);
       }
@@ -264,7 +268,7 @@ class ColorVisionDiagnosis {
     double deutan,
     double tritan,
   ) {
-    final (diagnosis, severity, type) = _calculateDiagnosis(
+    final result = _calculateDiagnosis(
       errors,
       unused,
       total,
@@ -274,18 +278,19 @@ class ColorVisionDiagnosis {
     );
 
     return DiagnosisResult(
-      diagnosis: diagnosis,
+      diagnosis: result.$1,
       errors: errors,
       unusedCaps: unused,
       totalLength: total.round(),
       protanPercentage: _calcPercentage(protan, total),
       deutanPercentage: _calcPercentage(deutan, total),
       tritanPercentage: _calcPercentage(tritan, total),
-      severity: severity,
-      type: type,
+      severity: result.$2,
+      type: result.$3,
     );
   }
 
+  // Updated thresholds and logic to avoid false-positive "mild protan" for very small deviations
   (String, String, String) _calculateDiagnosis(
     int errors,
     int unused,
@@ -294,10 +299,13 @@ class ColorVisionDiagnosis {
     double deutan,
     double tritan,
   ) {
-    if (errors == 0 && unused == 0 && total < 250) {
+    // If very few errors and all caps used -> normal
+    if (errors <= 1 && unused == 0 && total < 350) {
       return ("NORMAL RESULT", "NORMAL", "NORMAL");
     }
-    if (errors <= 2 && total < 250) {
+
+    // If only small issues (<=2 errors) but some unused, treat as non-specific mild
+    if (errors <= 2 && total < 400) {
       if (unused == 0) return ("NORMAL RESULT", "NORMAL", "NORMAL");
       if (unused == 1) {
         return (
@@ -319,33 +327,74 @@ class ColorVisionDiagnosis {
         "NON-SPECIFIC",
       );
     }
-    final (type, severity) = _determineType(protan, deutan, tritan, unused);
-    return ("COLOR VISION DEFICIENCY - $severity $type", severity, type);
+
+    // Convert to percentages to reason about dominance
+    final pPerc = _calcPercentage(protan, total);
+    final dPerc = _calcPercentage(deutan, total);
+    final tPerc = _calcPercentage(tritan, total);
+
+    // Determine dominant channel but require both an absolute threshold and a margin over second best
+    final percentages = [pPerc, dPerc, tPerc];
+    final maxPerc = percentages.reduce(max);
+    final secondBest = (percentages..sort()).reversed
+        .skip(1)
+        .firstWhere((_) => true, orElse: () => 0);
+
+    // convert to doubles for comparisons
+    final maxDouble = maxPerc.toDouble();
+    final secondDouble = secondBest.toDouble();
+
+    // dominance criteria: at least 40% of total vector length and at least 12 percentage points higher than second best
+    const dominanceThreshold = 40;
+    const dominanceMargin = 12;
+
+    if (maxPerc >= dominanceThreshold &&
+        (maxDouble - secondDouble) >= dominanceMargin) {
+      if (pPerc == maxPerc) {
+        return (
+          "COLOR VISION DEFICIENCY - ",
+          _getSeverityFromPercent(pPerc, unused),
+          "PROTAN",
+        );
+      } else if (dPerc == maxPerc) {
+        return (
+          "COLOR VISION DEFICIENCY - ",
+          _getSeverityFromPercent(dPerc, unused),
+          "DEUTAN",
+        );
+      } else if (tPerc == maxPerc) {
+        return (
+          "COLOR VISION DEFICIENCY - ",
+          _getSeverityFromPercent(tPerc, unused, isTritan: true),
+          "TRITAN",
+        );
+      }
+    }
+
+    // If nothing strongly dominant, classify as non-specific moderate
+    return (
+      "NON-SPECIFIC COLOR VISION DEFICIENCY - MODERATE",
+      "MODERATE",
+      "NON-SPECIFIC",
+    );
   }
 
-  (String, String) _determineType(
-    double protan,
-    double deutan,
-    double tritan,
-    int unused,
-  ) {
-    if (deutan > protan * 0.94 && deutan > tritan) {
-      return ("DEUTAN", _getSeverity(deutan, unused));
-    }
-    if (protan > deutan * 0.94 && protan > tritan) {
-      return ("PROTAN", _getSeverity(protan, unused));
-    }
-    if (tritan > deutan && tritan > protan) {
-      return ("TRITAN", _getSeverity(tritan, unused, isTritan: true));
-    }
-    return ("NON-SPECIFIC", "MODERATE");
-  }
-
-  String _getSeverity(double length, int unused, {bool isTritan = false}) {
-    if (length < 700 && unused < 2) return "MILD";
-    if (length < 1100 && unused < 3) return "MODERATE";
+  String _getSeverityFromPercent(
+    int percent,
+    int unused, {
+    bool isTritan = false,
+  }) {
+    // map percentage to severity with some empirical thresholds
+    if (percent < 45 && unused < 2) return "MILD";
+    if (percent < 70 && unused < 3) return "MODERATE";
     return "SEVERE";
   }
+
+  // String _getSeverity(double length, int unused, {bool isTritan = false}) {
+  //   if (length < 700 && unused < 2) return "MILD";
+  //   if (length < 1100 && unused < 3) return "MODERATE";
+  //   return "SEVERE";
+  // }
 
   int _calcPercentage(double part, double total) =>
       total > 0 ? (part / total * 100).round() : 0;
