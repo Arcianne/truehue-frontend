@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:image/image.dart' as img;
 import 'package:gal/gal.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:truehue/main.dart';
 import 'package:truehue/features/filters/presentation/pages/filter_page.dart';
@@ -11,13 +12,22 @@ import 'package:truehue/shared/presentation/widgets/nav_button.dart';
 import 'package:truehue/features/ar_live_view/presentation/pages/ar_live_view_page.dart';
 import 'package:truehue/features/select_a_photo/presentation/pages/select_a_photo_page.dart';
 import 'package:truehue/features/color_library/presentation/pages/color_library_page.dart';
+import 'package:truehue/features/home/presentation/pages/home.dart';
 
-void openARLiveView(
-  BuildContext context,
-  bool assistiveMode, {
-  String? simulationType,
-}) {
-  Navigator.push(
+Future<void> openARLiveView(BuildContext context) async {
+  final prefs = await SharedPreferences.getInstance();
+  final mode = prefs.getString('liveARMode') ?? 'Assistive';
+  final colorBlindType = prefs.getString('colorBlindnessType') ?? 'Normal';
+
+  // Determine assistiveMode and simulationType based on settings
+  final bool assistiveMode = mode == 'Assistive';
+  final String? simulationType = mode == 'Simulation'
+      ? colorBlindType.toLowerCase()
+      : null;
+
+  if (!context.mounted) return;
+
+  Navigator.pushReplacement(
     context,
     MaterialPageRoute(
       builder: (context) => ArLiveViewPage(
@@ -29,7 +39,7 @@ void openARLiveView(
 }
 
 void openTakeAPhotoPage(BuildContext context) {
-  Navigator.push(
+  Navigator.pushReplacement(
     context,
     MaterialPageRoute(
       builder: (context) => TakeAPhotoPage(camera: firstCamera),
@@ -47,16 +57,23 @@ class TakeAPhotoPage extends StatefulWidget {
 }
 
 void openSelectAPhotoPage(BuildContext context) {
-  Navigator.push(
+  Navigator.pushReplacement(
     context,
     MaterialPageRoute(builder: (context) => const SelectAPhotoPage()),
   );
 }
 
 void openColorLibraryPage(BuildContext context) {
-  Navigator.push(
+  Navigator.pushReplacement(
     context,
     MaterialPageRoute(builder: (context) => const ColorLibraryPage()),
+  );
+}
+
+void openHomePage(BuildContext context) {
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(builder: (context) => const Home()),
   );
 }
 
@@ -68,7 +85,6 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
   img.Image? _decodedImage;
   Offset? _tapPosition;
   Color _pickedColor = Colors.white;
-  String _colorName = "";
   String _colorFamily = "";
   int _r = 0, _g = 0, _b = 0;
   final GlobalKey _imageKey = GlobalKey();
@@ -144,7 +160,6 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
       _decodedImage = img.decodeImage(bytes);
       _tapPosition = null;
       _pickedColor = Colors.white;
-      _colorName = "";
       _colorFamily = "";
     });
   }
@@ -155,7 +170,6 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
       _decodedImage = null;
       _tapPosition = null;
       _pickedColor = Colors.white;
-      _colorName = "";
       _colorFamily = "";
     });
   }
@@ -173,14 +187,12 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
       ),
     );
 
-    // If a filtered image path is returned (from "Freeze"), update the display
     if (result != null && result is String) {
       final bytes = await File(result).readAsBytes();
       setState(() {
         _capturedImage = XFile(result);
         _decodedImage = img.decodeImage(bytes);
         _tapPosition = null;
-        _colorName = "";
       });
     }
   }
@@ -205,13 +217,10 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
       mapped.dy.round(),
     );
 
-    // Extract RGB values
     _r = (_pickedColor.r * 255).round();
     _g = (_pickedColor.g * 255).round();
     _b = (_pickedColor.b * 255).round();
 
-    // Use KNN ColorMatcher for accurate color naming
-    _colorName = ColorMatcher.getColorName(_r, _g, _b, k: 5);
     _colorFamily = ColorMatcher.getColorFamily(_r, _g, _b);
 
     setState(() {});
@@ -223,10 +232,7 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
     setState(() => _isSaving = true);
 
     try {
-      // Request permission if not yet granted
       await Gal.requestAccess();
-
-      // Save using gal
       await Gal.putImage(_capturedImage!.path, album: 'TrueHue');
 
       if (mounted) {
@@ -269,7 +275,6 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
           return Stack(
             fit: StackFit.expand,
             children: [
-              // Camera or Image Display
               GestureDetector(
                 onTapDown: _handleTap,
                 child: _capturedImage == null
@@ -281,7 +286,7 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
                       ),
               ),
 
-              // Top bar with back button
+              // Top bar
               Positioned(
                 top: 0,
                 left: 0,
@@ -325,8 +330,8 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
                 ),
               ),
 
-              // Color card (styled like AR Live View)
-              if (_capturedImage != null && _colorName.isNotEmpty)
+              // Color card (only color family + RGB)
+              if (_capturedImage != null && _colorFamily.isNotEmpty)
                 Positioned(
                   top: MediaQuery.of(context).padding.top + 70,
                   left: 16,
@@ -346,7 +351,6 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
                     ),
                     child: Row(
                       children: [
-                        // Color circle
                         Container(
                           width: 60,
                           height: 60,
@@ -360,13 +364,12 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
                           ),
                         ),
                         const SizedBox(width: 16),
-                        // Color info
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                _colorName,
+                                "$_colorFamily ",
                                 style: const TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
@@ -375,18 +378,10 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                "$_colorFamily Family",
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey.shade600,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
                                 "RGB: $_r, $_g, $_b",
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Colors.grey.shade500,
+                                  color: Colors.grey.shade600,
                                 ),
                               ),
                             ],
@@ -397,7 +392,7 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
                   ),
                 ),
 
-              // Tap marker (only show dot when tapped)
+              // Tap marker
               if (_tapPosition != null && _capturedImage != null)
                 Positioned(
                   left: _tapPosition!.dx - 15,
@@ -439,7 +434,6 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
                       ? Row(
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
-                            // Filter button
                             Expanded(
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -469,7 +463,6 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
                                 ),
                               ),
                             ),
-                            // Retake button
                             Expanded(
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -499,7 +492,6 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
                                 ),
                               ),
                             ),
-                            // Save button
                             Expanded(
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -593,7 +585,7 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
             NavButton(
               icon: Icons.visibility,
               label: '',
-              onTap: () => Navigator.pop(context),
+              onTap: () => openARLiveView(context),
             ),
             NavButton(
               icon: Icons.menu_book,
@@ -603,7 +595,7 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
             NavButton(
               icon: Icons.home,
               label: '',
-              onTap: () => Navigator.pop(context),
+              onTap: () => openHomePage(context),
             ),
           ],
         ),

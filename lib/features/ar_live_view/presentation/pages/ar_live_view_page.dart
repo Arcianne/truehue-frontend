@@ -4,18 +4,29 @@ import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:truehue/main.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:truehue/shared/presentation/widgets/nav_button.dart';
 import 'package:truehue/features/take_a_photo/presentation/pages/take_a_photo_page.dart';
 import 'package:truehue/features/select_a_photo/presentation/pages/select_a_photo_page.dart';
 import 'package:truehue/features/color_library/presentation/pages/color_library_page.dart';
 import 'package:truehue/core/algorithm/knn_color_matcher.dart';
+import 'package:truehue/features/home/presentation/pages/home.dart';
 
-void openARLiveView(
-  BuildContext context,
-  bool assistiveMode, {
-  String? simulationType,
-}) {
-  Navigator.push(
+Future<void> openARLiveView(BuildContext context) async {
+  final prefs = await SharedPreferences.getInstance();
+  final mode = prefs.getString('liveARMode') ?? 'Assistive';
+  final colorBlindType = prefs.getString('colorBlindnessType') ?? 'Normal';
+
+  // Determine assistiveMode and simulationType based on settings
+  final bool assistiveMode = mode == 'Assistive';
+  final String? simulationType = mode == 'Simulation'
+      ? colorBlindType.toLowerCase()
+      : null;
+
+  if (!context.mounted) return;
+
+  Navigator.pushReplacement(
     context,
     MaterialPageRoute(
       builder: (context) => ArLiveViewPage(
@@ -26,8 +37,15 @@ void openARLiveView(
   );
 }
 
+void openSelectAPhotoPage(BuildContext context) {
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(builder: (context) => const SelectAPhotoPage()),
+  );
+}
+
 void openTakeAPhotoPage(BuildContext context) {
-  Navigator.push(
+  Navigator.pushReplacement(
     context,
     MaterialPageRoute(
       builder: (context) => TakeAPhotoPage(camera: firstCamera),
@@ -35,19 +53,20 @@ void openTakeAPhotoPage(BuildContext context) {
   );
 }
 
-void openSelectAPhotoPage(BuildContext context) {
-  Navigator.push(
-    context,
-    MaterialPageRoute(builder: (context) => const SelectAPhotoPage()),
-  );
-}
-
 void openColorLibraryPage(BuildContext context) {
-  Navigator.push(
+  Navigator.pushReplacement(
     context,
     MaterialPageRoute(builder: (context) => const ColorLibraryPage()),
   );
 }
+
+void openHomePage(BuildContext context) {
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(builder: (context) => const Home()),
+  );
+}
+
 
 class ArLiveViewPage extends StatefulWidget {
   final bool assistiveMode;
@@ -201,29 +220,37 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
       final rgb = _convertYUV420ToImage(image);
       if (rgb == null) return;
 
-      // ------------------ Adaptive Sampling ------------------
-      final regionSize = (rgb.width / 40).round().clamp(3, 10);
+      // ------------------ Weighted Average Sampling (EXACTLY like Take A Photo) ------------------
       final centerX = rgb.width ~/ 2;
       final centerY = rgb.height ~/ 2;
+      const radius = 3; // Same as take-a-photo default
 
-      List<int> reds = [];
-      List<int> greens = [];
-      List<int> blues = [];
+      int r = 0, g = 0, b = 0, totalWeight = 0;
 
-      for (int dy = -regionSize; dy <= regionSize; dy += 2) {
-        for (int dx = -regionSize; dx <= regionSize; dx += 2) {
-          final x = (centerX + dx).clamp(0, rgb.width - 1);
-          final y = (centerY + dy).clamp(0, rgb.height - 1);
+      for (int dx = -radius; dx <= radius; dx++) {
+        for (int dy = -radius; dy <= radius; dy++) {
+          int distance = dx.abs() + dy.abs();
+          int weight = (radius * 2 + 1) - distance;
+
+          int x = (centerX + dx).clamp(0, rgb.width - 1);
+          int y = (centerY + dy).clamp(0, rgb.height - 1);
+
           final pixel = rgb.getPixel(x, y);
-          reds.add(pixel.r.toInt());
-          greens.add(pixel.g.toInt());
-          blues.add(pixel.b.toInt());
+          r += pixel.r.toInt() * weight;
+          g += pixel.g.toInt() * weight;
+          b += pixel.b.toInt() * weight;
+          totalWeight += weight;
         }
       }
 
-      final avgR = _median(reds);
-      final avgG = _median(greens);
-      final avgB = _median(blues);
+      if (totalWeight == 0) {
+        _isProcessing = false;
+        return;
+      }
+
+      final avgR = r ~/ totalWeight;
+      final avgG = g ~/ totalWeight;
+      final avgB = b ~/ totalWeight;
 
       // ------------------ Temporal Smoothing ------------------
       _rBuffer.add(avgR);
@@ -240,57 +267,14 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
       final smoothedB = (_bBuffer.reduce((a, b) => a + b) / _bBuffer.length)
           .round();
 
-      // ------------------ Black & White Detection ------------------
-      if (smoothedR > 240 && smoothedG > 240 && smoothedB > 240) {
-        if (mounted) {
-          setState(() {
-            _sampledColor = Colors.white;
-            _colorFamily = "White";
-            _r = smoothedR;
-            _g = smoothedG;
-            _b = smoothedB;
-          });
-        }
-        _isProcessing = false;
-        return;
-      } else if (smoothedR < 15 && smoothedG < 15 && smoothedB < 15) {
-        if (mounted) {
-          setState(() {
-            _sampledColor = Colors.black;
-            _colorFamily = "Black";
-            _r = smoothedR;
-            _g = smoothedG;
-            _b = smoothedB;
-          });
-        }
-        _isProcessing = false;
-        return;
-      }
-
-      // ------------------ Adaptive Brightness ------------------
-      final brightness =
-          0.299 * smoothedR + 0.587 * smoothedG + 0.114 * smoothedB;
-      double boostFactor = 1.0;
-      if (brightness < 30)
-        boostFactor = 3.0;
-      else if (brightness < 60)
-        boostFactor = 2.2;
-      else if (brightness < 100)
-        boostFactor = 1.5;
-      else if (brightness > 240)
-        boostFactor = 0.9;
-
-      int adjustedR = (smoothedR * boostFactor).clamp(0, 255).toInt();
-      int adjustedG = (smoothedG * boostFactor).clamp(0, 255).toInt();
-      int adjustedB = (smoothedB * boostFactor).clamp(0, 255).toInt();
-
-      // ------------------ KNN Color Matching ------------------
+      // ------------------ KNN Color Matching (Let KNN handle EVERYTHING) ------------------
       final colorFamily = ColorMatcher.getColorFamily(
-        adjustedR,
-        adjustedG,
-        adjustedB,
+        smoothedR,
+        smoothedG,
+        smoothedB,
       );
-      final displayColor = Color.fromARGB(255, adjustedR, adjustedG, adjustedB);
+
+      final displayColor = Color.fromARGB(255, smoothedR, smoothedG, smoothedB);
 
       // ------------------ Update UI ------------------
       const threshold = 5;
@@ -313,14 +297,6 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
     } finally {
       _isProcessing = false;
     }
-  }
-
-  int _median(List<int> values) {
-    if (values.isEmpty) return 0;
-    values.sort();
-    int mid = values.length ~/ 2;
-    if (values.length % 2 == 1) return values[mid];
-    return ((values[mid - 1] + values[mid]) / 2).round();
   }
 
   img.Image? _convertYUV420ToImage(CameraImage image) {
@@ -680,6 +656,8 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
           }
         },
       ),
+
+      // Bottom nav bar
       bottomNavigationBar: Container(
         color: const Color.fromARGB(47, 3, 0, 52),
         padding: const EdgeInsets.symmetric(vertical: 10),
@@ -689,8 +667,7 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
             NavButton(
               icon: Icons.upload_outlined,
               label: '',
-              isSelected: true,
-              onTap: () {},
+              onTap: () => openSelectAPhotoPage(context),
             ),
             NavButton(
               icon: Icons.camera_alt,
@@ -700,7 +677,8 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
             NavButton(
               icon: Icons.visibility,
               label: '',
-              onTap: () => Navigator.pop(context),
+              isSelected: true,
+              onTap: () {},
             ),
             NavButton(
               icon: Icons.menu_book,
@@ -710,7 +688,7 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
             NavButton(
               icon: Icons.home,
               label: '',
-              onTap: () => Navigator.pop(context),
+              onTap: () => openHomePage(context),
             ),
           ],
         ),

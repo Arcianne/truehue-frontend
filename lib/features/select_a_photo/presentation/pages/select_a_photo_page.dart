@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img;
 import 'package:gal/gal.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:truehue/features/filters/presentation/pages/filter_page.dart';
 import 'package:truehue/core/algorithm/knn_color_matcher.dart';
@@ -11,13 +12,22 @@ import 'package:truehue/shared/presentation/widgets/nav_button.dart';
 import 'package:truehue/features/take_a_photo/presentation/pages/take_a_photo_page.dart';
 import 'package:truehue/features/ar_live_view/presentation/pages/ar_live_view_page.dart';
 import 'package:truehue/features/color_library/presentation/pages/color_library_page.dart';
+import 'package:truehue/features/home/presentation/pages/home.dart';
 
-void openARLiveView(
-  BuildContext context,
-  bool assistiveMode, {
-  String? simulationType,
-}) {
-  Navigator.push(
+Future<void> openARLiveView(BuildContext context) async {
+  final prefs = await SharedPreferences.getInstance();
+  final mode = prefs.getString('liveARMode') ?? 'Assistive';
+  final colorBlindType = prefs.getString('colorBlindnessType') ?? 'Normal';
+
+  // Determine assistiveMode and simulationType based on settings
+  final bool assistiveMode = mode == 'Assistive';
+  final String? simulationType = mode == 'Simulation'
+      ? colorBlindType.toLowerCase()
+      : null;
+
+  if (!context.mounted) return;
+
+  Navigator.pushReplacement(
     context,
     MaterialPageRoute(
       builder: (context) => ArLiveViewPage(
@@ -28,8 +38,15 @@ void openARLiveView(
   );
 }
 
+void openSelectAPhotoPage(BuildContext context) {
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(builder: (context) => const SelectAPhotoPage()),
+  );
+}
+
 void openTakeAPhotoPage(BuildContext context) {
-  Navigator.push(
+  Navigator.pushReplacement(
     context,
     MaterialPageRoute(
       builder: (context) => TakeAPhotoPage(camera: firstCamera),
@@ -38,9 +55,16 @@ void openTakeAPhotoPage(BuildContext context) {
 }
 
 void openColorLibraryPage(BuildContext context) {
-  Navigator.push(
+  Navigator.pushReplacement(
     context,
     MaterialPageRoute(builder: (context) => const ColorLibraryPage()),
+  );
+}
+
+void openHomePage(BuildContext context) {
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(builder: (context) => const Home()),
   );
 }
 
@@ -56,7 +80,6 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
   img.Image? _decodedImage;
   Offset? _tapPosition;
   Color _pickedColor = Colors.white;
-  String _colorName = "";
   String _colorFamily = "";
   int _r = 0, _g = 0, _b = 0;
   final GlobalKey _imageKey = GlobalKey();
@@ -82,7 +105,6 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
         _decodedImage = img.decodeImage(bytes);
         _tapPosition = null;
         _pickedColor = Colors.white;
-        _colorName = "";
         _colorFamily = "";
       });
     } else {
@@ -161,7 +183,6 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
     _g = _pickedColor.green;
     _b = _pickedColor.blue;
 
-    _colorName = ColorMatcher.getColorName(_r, _g, _b, k: 5);
     _colorFamily = ColorMatcher.getColorFamily(_r, _g, _b);
 
     setState(() {});
@@ -190,7 +211,6 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
         _selectedImage = XFile(result);
         _decodedImage = img.decodeImage(bytes);
         _tapPosition = null;
-        _colorName = "";
       });
     }
   }
@@ -290,7 +310,7 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
           ),
 
           // Color info card
-          if (_selectedImage != null && _colorName.isNotEmpty)
+          if (_selectedImage != null && _colorFamily.isNotEmpty)
             Positioned(
               top: MediaQuery.of(context).padding.top + 70,
               left: 16,
@@ -302,7 +322,7 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.3),
+                      color: Colors.black.withValues(alpha: 0.3),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -328,7 +348,7 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _colorName,
+                            "$_colorFamily ",
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -337,18 +357,10 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            "$_colorFamily Family",
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
                             "RGB: $_r, $_g, $_b",
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.grey.shade500,
+                              color: Colors.grey.shade600,
                             ),
                           ),
                         ],
@@ -495,6 +507,7 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
         ],
       ),
 
+      // Bottom nav bar
       bottomNavigationBar: Container(
         color: const Color.fromARGB(47, 3, 0, 52),
         padding: const EdgeInsets.symmetric(vertical: 10),
@@ -515,7 +528,7 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
             NavButton(
               icon: Icons.visibility,
               label: '',
-              onTap: () => Navigator.pop(context),
+              onTap: () => openARLiveView(context),
             ),
             NavButton(
               icon: Icons.menu_book,
@@ -525,7 +538,7 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
             NavButton(
               icon: Icons.home,
               label: '',
-              onTap: () => Navigator.pop(context),
+              onTap: () => openHomePage(context),
             ),
           ],
         ),

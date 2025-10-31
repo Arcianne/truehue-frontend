@@ -1,17 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:truehue/main.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:truehue/shared/presentation/widgets/nav_button.dart';
 import 'package:truehue/features/ar_live_view/presentation/pages/ar_live_view_page.dart';
 import 'package:truehue/features/select_a_photo/presentation/pages/select_a_photo_page.dart';
 import 'package:truehue/features/take_a_photo/presentation/pages/take_a_photo_page.dart';
 import 'package:truehue/core/algorithm/knn_color_matcher.dart';
+import 'package:truehue/features/home/presentation/pages/home.dart';
 
-void openARLiveView(
-  BuildContext context,
-  bool assistiveMode, {
-  String? simulationType,
-}) {
-  Navigator.push(
+Future<void> openARLiveView(BuildContext context) async {
+  final prefs = await SharedPreferences.getInstance();
+  final mode = prefs.getString('liveARMode') ?? 'Assistive';
+  final colorBlindType = prefs.getString('colorBlindnessType') ?? 'Normal';
+
+  final bool assistiveMode = mode == 'Assistive';
+  final String? simulationType = mode == 'Simulation'
+      ? colorBlindType.toLowerCase()
+      : null;
+
+  if (!context.mounted) return;
+
+  Navigator.pushReplacement(
+    // Keep this
     context,
     MaterialPageRoute(
       builder: (context) => ArLiveViewPage(
@@ -22,8 +33,15 @@ void openARLiveView(
   );
 }
 
+void openSelectAPhotoPage(BuildContext context) {
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(builder: (context) => const SelectAPhotoPage()),
+  );
+}
+
 void openTakeAPhotoPage(BuildContext context) {
-  Navigator.push(
+  Navigator.pushReplacement(
     context,
     MaterialPageRoute(
       builder: (context) => TakeAPhotoPage(camera: firstCamera),
@@ -31,17 +49,20 @@ void openTakeAPhotoPage(BuildContext context) {
   );
 }
 
-void openSelectAPhotoPage(BuildContext context) {
-  Navigator.push(
+void openColorLibraryPage(BuildContext context) {
+  Navigator.pushReplacement(
     context,
-    MaterialPageRoute(builder: (context) => const SelectAPhotoPage()),
+    MaterialPageRoute(builder: (context) => const ColorLibraryPage()),
   );
 }
 
-void openColorLibraryPage(BuildContext context) {
-  Navigator.push(
+void openHomePage(BuildContext context) {
+  Navigator.pushReplacement(
+    // NEW: Add this function
     context,
-    MaterialPageRoute(builder: (context) => const ColorLibraryPage()),
+    MaterialPageRoute(
+      builder: (context) => const Home(),
+    ), // Replace with your actual home page widget name
   );
 }
 
@@ -239,8 +260,10 @@ class _ColorLibraryPageState extends State<ColorLibraryPage> {
           ),
         ],
       ),
+
+      // Bottom nav bar
       bottomNavigationBar: Container(
-        color: const Color(0xFF130E64),
+        color: const Color.fromARGB(47, 3, 0, 52),
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -248,39 +271,28 @@ class _ColorLibraryPageState extends State<ColorLibraryPage> {
             NavButton(
               icon: Icons.upload_outlined,
               label: '',
-              onTap: () {
-                openSelectAPhotoPage(context);
-              },
+              onTap: () => openSelectAPhotoPage(context),
             ),
             NavButton(
               icon: Icons.camera_alt,
               label: '',
-              isSelected: false,
-              onTap: () {
-                openTakeAPhotoPage(context);
-              },
+              onTap: () => openTakeAPhotoPage(context),
             ),
             NavButton(
               icon: Icons.visibility,
               label: '',
-              onTap: () {
-                openARLiveView(context, false);
-              },
+              onTap: () => openARLiveView(context),
             ),
             NavButton(
               icon: Icons.menu_book,
               label: '',
               isSelected: true,
-              onTap: () {
-                // Already in color library
-              },
+              onTap: () {},
             ),
             NavButton(
               icon: Icons.home,
               label: '',
-              onTap: () {
-                Navigator.pop(context);
-              },
+              onTap: () => openHomePage(context),
             ),
           ],
         ),
