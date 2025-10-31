@@ -32,15 +32,8 @@ void openTakeAPhotoPage(BuildContext context) {
   Navigator.push(
     context,
     MaterialPageRoute(
-      builder: (context) => TakeAPhotoPage(camera: firstCamera,),
+      builder: (context) => TakeAPhotoPage(camera: firstCamera),
     ),
-  );
-}
-
-void openSelectAPhotoPage(BuildContext context) {
-  Navigator.push(
-    context,
-    MaterialPageRoute(builder: (context) => const SelectAPhotoPage()),
   );
 }
 
@@ -69,7 +62,15 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
   final GlobalKey _imageKey = GlobalKey();
   bool _isSaving = false;
 
-  // Pick image from gallery
+  @override
+  void initState() {
+    super.initState();
+    // Automatically open gallery on page load
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _pickImage();
+    });
+  }
+
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: ImageSource.gallery);
@@ -84,6 +85,9 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
         _colorName = "";
         _colorFamily = "";
       });
+    } else {
+      // User cancelled: go back automatically
+      Navigator.pop(context);
     }
   }
 
@@ -153,9 +157,9 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
       mapped.dy.round(),
     );
 
-    _r = (_pickedColor.r * 255).round();
-    _g = (_pickedColor.g * 255).round();
-    _b = (_pickedColor.b * 255).round();
+    _r = _pickedColor.red;
+    _g = _pickedColor.green;
+    _b = _pickedColor.blue;
 
     _colorName = ColorMatcher.getColorName(_r, _g, _b, k: 5);
     _colorFamily = ColorMatcher.getColorFamily(_r, _g, _b);
@@ -164,14 +168,7 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
   }
 
   void _resetToGallery() {
-    setState(() {
-      _selectedImage = null;
-      _decodedImage = null;
-      _tapPosition = null;
-      _pickedColor = Colors.white;
-      _colorName = "";
-      _colorFamily = "";
-    });
+    _pickImage();
   }
 
   Future<void> _openFilterPage() async {
@@ -240,17 +237,14 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
         children: [
           GestureDetector(
             onTapDown: _handleTap,
-            child: _selectedImage == null
-                ? const Center(
-                    child: Text(
-                      "Tap below to select a photo",
-                      style: TextStyle(color: Colors.white70, fontSize: 16),
-                    ),
-                  )
-                : Image.file(
+            child: _selectedImage != null
+                ? Image.file(
                     File(_selectedImage!.path),
                     key: _imageKey,
                     fit: BoxFit.contain,
+                  )
+                : const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
                   ),
           ),
 
@@ -270,10 +264,7 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.7),
-                    Colors.transparent,
-                  ],
+                  colors: [Colors.black.withOpacity(0.7), Colors.transparent],
                 ),
               ),
               child: Row(
@@ -311,7 +302,7 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.3),
+                      color: Colors.black.withOpacity(0.3),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -385,156 +376,125 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
             ),
 
           // Bottom buttons
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).padding.bottom + 90,
-                top: 16,
-                left: 16,
-                right: 16,
-              ),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.8),
-                    Colors.transparent,
-                  ],
+          if (_selectedImage != null)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).padding.bottom + 90,
+                  top: 16,
+                  left: 16,
+                  right: 16,
                 ),
-              ),
-              child: _selectedImage != null
-                  ? Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: ElevatedButton.icon(
-                              onPressed: _openFilterPage,
-                              icon: const Icon(Icons.filter_alt, size: 18),
-                              label: const Text(
-                                'FILTER',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: Colors.black,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 12,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                ),
-                              ),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [Colors.black.withOpacity(0.8), Colors.transparent],
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: ElevatedButton.icon(
+                          onPressed: _openFilterPage,
+                          icon: const Icon(Icons.filter_alt, size: 18),
+                          label: const Text(
+                            'FILTER',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                        ),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: ElevatedButton.icon(
-                              onPressed: _resetToGallery,
-                              icon: const Icon(Icons.refresh, size: 18),
-                              label: const Text(
-                                'RESELECT',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: Colors.black,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 12,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                ),
-                              ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
                             ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: ElevatedButton.icon(
-                              onPressed: _isSaving ? null : _saveImage,
-                              icon: _isSaving
-                                  ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.black,
-                                      ),
-                                    )
-                                  : const Icon(Icons.download, size: 18),
-                              label: Text(
-                                _isSaving ? 'SAVING...' : 'SAVE',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: Colors.black,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 12,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    )
-                  : Center(
-                      child: GestureDetector(
-                        onTap: _pickImage,
-                        child: Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 4),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(6),
-                            child: Container(
-                              decoration: const BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.image,
-                                size: 40,
-                                color: Colors.black,
-                              ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
                             ),
                           ),
                         ),
                       ),
                     ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: ElevatedButton.icon(
+                          onPressed: _resetToGallery,
+                          icon: const Icon(Icons.refresh, size: 18),
+                          label: const Text(
+                            'RESELECT',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: ElevatedButton.icon(
+                          onPressed: _isSaving ? null : _saveImage,
+                          icon: _isSaving
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.black,
+                                  ),
+                                )
+                              : const Icon(Icons.download, size: 18),
+                          label: Text(
+                            _isSaving ? 'SAVING...' : 'SAVE',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
         ],
       ),
 
-      // Bottom nav bar
       bottomNavigationBar: Container(
         color: const Color.fromARGB(47, 3, 0, 52),
         padding: const EdgeInsets.symmetric(vertical: 10),

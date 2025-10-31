@@ -751,40 +751,7 @@ class ColorMatcher {
     'Autumn Brown': [205, 133, 63],
     'Harvest Brown': [255, 155, 66],
 
-    // ==================== GRAYS, WHITES, BLACKS (100) ====================
-    'White': [255, 255, 255],
-    'Pure White': [255, 255, 255],
-    'Bright White': [254, 254, 254],
-    'Snow': [255, 250, 250],
-    'Snow White': [255, 250, 250],
-    'Ivory': [255, 255, 240],
-    'Pearl': [240, 234, 214],
-    'Pearl White': [250, 250, 245],
-    'Off White': [250, 250, 250],
-    'Eggshell': [240, 234, 214],
-    'Linen': [250, 240, 230],
-    'Seashell': [255, 245, 238],
-    'Alabaster': [237, 234, 224],
-    'Bone': [227, 218, 201],
-    'Porcelain': [239, 236, 230],
-    'China White': [250, 246, 240],
-    'Chalk': [237, 234, 224],
-    'Marble': [250, 248, 247],
-    'Milk': [254, 255, 250],
-    'Coconut': [255, 252, 249],
-    'Rice': [242, 240, 220],
-    'Ghost White': [248, 248, 255],
-    'White Smoke': [245, 245, 245],
-    'Floral White': [255, 250, 240],
-    'Antique White': [250, 235, 215],
-    'Navajo White': [255, 222, 173],
-    'Papaya Whip': [255, 239, 213],
-    'Blanched Almond': [255, 235, 205],
-    'Bisque': [255, 228, 196],
-    'Platinum': [229, 228, 226],
-    'Silver': [192, 192, 192],
-    'Light Silver': [211, 211, 211],
-    'Metallic Silver': [170, 169, 173],
+    // ==================== GRAYS (35) ====================
     'Light Gray': [211, 211, 211],
     'Pale Gray': [220, 220, 220],
     'Gainsboro': [220, 220, 220],
@@ -828,6 +795,43 @@ class ColorMatcher {
     'Dark Gray': [64, 64, 64],
     'Dim Gray': [105, 105, 105],
     'Battleship Gray': [132, 132, 130],
+
+    // ==================== WHITES (30) ====================
+    'White': [255, 255, 255],
+    'Pure White': [255, 255, 255],
+    'Bright White': [254, 254, 254],
+    'Snow': [255, 250, 250],
+    'Snow White': [255, 250, 250],
+    'Ivory': [255, 255, 240],
+    'Pearl': [240, 234, 214],
+    'Pearl White': [250, 250, 245],
+    'Off White': [250, 250, 250],
+    'Eggshell': [240, 234, 214],
+    'Linen': [250, 240, 230],
+    'Seashell': [255, 245, 238],
+    'Alabaster': [237, 234, 224],
+    'Bone': [227, 218, 201],
+    'Porcelain': [239, 236, 230],
+    'China White': [250, 246, 240],
+    'Chalk': [237, 234, 224],
+    'Marble': [250, 248, 247],
+    'Milk': [254, 255, 250],
+    'Coconut': [255, 252, 249],
+    'Rice': [242, 240, 220],
+    'Ghost White': [248, 248, 255],
+    'White Smoke': [245, 245, 245],
+    'Floral White': [255, 250, 240],
+    'Antique White': [250, 235, 215],
+    'Navajo White': [255, 222, 173],
+    'Papaya Whip': [255, 239, 213],
+    'Blanched Almond': [255, 235, 205],
+    'Bisque': [255, 228, 196],
+    'Platinum': [229, 228, 226],
+    'Silver': [192, 192, 192],
+    'Light Silver': [211, 211, 211],
+    'Metallic Silver': [170, 169, 173],
+
+    // ==================== BLACKS (25) ====================
     'Jet': [52, 52, 52],
     'Onyx': [53, 56, 57],
     'Obsidian': [59, 72, 81],
@@ -898,30 +902,39 @@ class ColorMatcher {
     return mostCommon;
   }
 
-
-  /// Get a simplified color family name
+  /// Get a simplified color family name with SEPARATED Gray, Black, and White
   /// Returns: Red, Pink, Orange, Yellow, Green, Blue, Purple, Brown, Gray, White, Black
   static String getColorFamily(int r, int g, int b) {
     final max = [r, g, b].reduce((a, b) => a > b ? a : b);
     final min = [r, g, b].reduce((a, b) => a < b ? a : b);
     final diff = max - min;
 
-    // Lightness
+    // Lightness (0-1 scale)
     final lightness = (max + min) / 2 / 255;
 
-    // Saturation
+    // Saturation (0-1 scale)
     final saturation = diff == 0
         ? 0.0
         : diff / (255 - (2 * lightness * 255 - 255).abs());
 
-    // Check for achromatic (grayscale)
-    if (saturation < 0.15) {
-      if (lightness < 0.2) return "Black";
-      if (lightness > 0.8) return "White";
+    // SEPARATE BLACK, WHITE, AND GRAY with adjusted boundaries for brightness boost
+
+    // BLACK: Very dark colors (lightness < 0.25) - increased threshold for boosted values
+    if (lightness < 0.25 && saturation < 0.15) {
+      return "Black";
+    }
+
+    // WHITE: Bright colors with low saturation (lightness > 0.60)
+    if (saturation < 0.12 && lightness > 0.60) {
+      return "White";
+    }
+
+    // GRAY: Low saturation mid-range colors (between black and white)
+    if (saturation < 0.15 && lightness >= 0.25 && lightness <= 0.60) {
       return "Gray";
     }
 
-    // Calculate Hue
+    // Calculate Hue for chromatic colors
     double hue = 0;
     if (diff != 0) {
       if (max == r) {

@@ -10,21 +10,21 @@ class TestScreenPage extends StatefulWidget {
 
 class _TestScreenPageState extends State<TestScreenPage> {
   final List<Color> _colors = [
-    const Color(0xFF67D4F1),
-    const Color(0xFF65D0E2),
-    const Color(0xFF67D3D6),
-    const Color(0xFF75D5C9),
-    const Color(0xFF6ED0B9),
-    const Color(0xFF8AC78E),
-    const Color(0xFFA3BD4F),
-    const Color(0xFFD0B244),
-    const Color(0xFFDDA149),
-    const Color(0xFFE99569),
-    const Color(0xFFE89784),
-    const Color(0xFFE999A3),
-    const Color(0xFFD59FB4),
-    const Color(0xFFD099C3),
-    const Color(0xFFC8A7DB),
+    const Color(0xFF7E9AC8),
+    const Color(0xFF6DA7BA),
+    const Color(0xFF61B1A6),
+    const Color(0xFF65B88E),
+    const Color(0xFF7CBC75),
+    const Color(0xFF98BE67),
+    const Color(0xFFB6BD5D),
+    const Color(0xFFD3B85F),
+    const Color(0xFFE2A965),
+    const Color(0xFFE89A74),
+    const Color(0xFFE58A8B),
+    const Color(0xFFD97A9F),
+    const Color(0xFFC66FB0),
+    const Color(0xFFAB6EBF),
+    const Color(0xFF8C74C7),
   ];
 
   late List<Color?> _availableSlots; // placeholders for available colors
@@ -280,11 +280,15 @@ class _TestScreenPageState extends State<TestScreenPage> {
     });
   }
 
-  void _showResults() {
-    final userOrder = [
-      _colors[0],
-      ..._placedColors.sublist(1).whereType<Color>(),
-    ];
+void _showResults() {
+    // Collect all 15 colors exactly as arranged by the user
+    final userOrder = _placedColors.whereType<Color>().toList();
+
+    // Optional sanity check (for debugging)
+    debugPrint("User order length: ${userOrder.length}");
+    for (int i = 0; i < userOrder.length; i++) {
+      debugPrint("Cap $i: ${userOrder[i]}");
+    }
 
     Navigator.push(
       context,

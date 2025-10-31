@@ -7,6 +7,10 @@ import 'package:truehue/features/color_library/presentation/pages/color_library_
 import 'package:truehue/features/settings/presentation/pages/settings_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+
+import 'package:truehue/features/onboarding/presentation/pages/welcome.dart';
+
+
 class Home extends StatefulWidget {
   const Home({super.key});
 
@@ -163,6 +167,15 @@ class _HomeState extends State<Home> {
             onPressed: openColorLibraryPage,
           ),
           const SizedBox(height: 40),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const Welcome()),
+              );
+            },
+            child: const Text('Welcome Page'),
+          ),
           // Display saved selections
           Text('Color Blindness Type: $colorBlindnessType'),
           Text('Live AR Mode: $liveARMode'),

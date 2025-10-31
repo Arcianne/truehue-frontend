@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:truehue/features/onboarding/presentation/pages/mode_selection_page.dart';
 import 'dart:math';
 
+// ---------------------------------------------
+// TEST RESULT PAGE
+// ---------------------------------------------
 class TestResultPage extends StatelessWidget {
   final List<Color?> userColorOrder;
   final List<Color> referenceColors;
@@ -17,7 +20,7 @@ class TestResultPage extends StatelessWidget {
     final diagnosis = ColorVisionDiagnosis(
       userColorOrder,
       referenceColors,
-    ).analyze();
+    ).analyze(debug: true); // debug true to print details
 
     return Scaffold(
       backgroundColor: const Color(0xFF130E64),
@@ -30,11 +33,20 @@ class TestResultPage extends StatelessWidget {
             _buildDiagnosisText('DIAGNOSIS: ${diagnosis.diagnosis}'),
             const SizedBox(height: 20),
             _buildDiagnosisText(
-              'Errors: ${diagnosis.errors}, Unused caps: ${diagnosis.unusedCaps}',
+              'TES: ${diagnosis.totalLength}, '
+              'C-index: ${diagnosis.cIndex.toStringAsFixed(2)}, '
+              'Angle: ${diagnosis.angleDeg.toStringAsFixed(1)}°',
             ),
+            const SizedBox(height: 20),
+            _buildDiagnosisText(
+              'Unused Caps: ${diagnosis.unusedCaps}, '
+              'Severity: ${diagnosis.severity}',
+            ),
+            const SizedBox(height: 20),
+            _buildDiagnosisText('Crossings: ${diagnosis.errors}'),
             const SizedBox(height: 40),
             _buildAnalysisContainer(diagnosis),
-            const SizedBox(height: 40),
+            const Spacer(),
             ElevatedButton(
               onPressed: () => Navigator.push(
                 context,
@@ -143,268 +155,267 @@ class TestResultPage extends StatelessWidget {
 
   String _getResultAnalysis(DiagnosisResult diagnosis) {
     if (diagnosis.type == "NORMAL") {
-      return 'Your color vision appears to be normal. You have good color discrimination ability.';
+      return _severityDisplay("Normal");
     }
     if (diagnosis.type == "NON-SPECIFIC") {
-      return 'You show signs of color vision deficiency. The test indicates general color discrimination difficulties.';
+      return "You show non-specific color discrimination difficulty. Consider retesting under proper lighting.";
     }
-    return 'The test suggests ${diagnosis.severity.toLowerCase()} ${diagnosis.type.toLowerCase()} color vision deficiency. This affects your ability to distinguish certain colors.';
+
+    // For Protan, Deutan, Tritan — use severity description
+    final baseDesc = _severityDisplay(diagnosis.severity);
+    return "$baseDesc\n\nThis pattern suggests a ${diagnosis.severity.toLowerCase()} ${diagnosis.type.toLowerCase()} deficiency — your ability to distinguish certain hues (around the ${diagnosis.type.toLowerCase()} axis) may be reduced.";
   }
 }
 
+String _severityDisplay(String severity) {
+  switch (severity) {
+    case "Normal":
+      return "Your color vision appears normal — good color discrimination ability.";
+    case "Mild":
+      return "Your results are close to normal — minor variations detected in color ordering.";
+    case "Moderate":
+      return "You show moderate color discrimination difficulty — some hues may be challenging to distinguish.";
+    case "Severe":
+      return "You show severe difficulty distinguishing certain hues. Consider consulting an eye specialist for confirmation.";
+    default:
+      return "Your test result is inconclusive. Please retake the test under proper lighting conditions.";
+  }
+}
+
+// ---------------------------------------------
+// DIAGNOSIS + CDV COMPUTATION (Enhanced + Auto-Calibrated)
+// ---------------------------------------------
 class ColorVisionDiagnosis {
   final List<Color?> userColorOrder;
   final List<Color> referenceColors;
 
-  // Reference 2D coordinates for accurate vector calculation
-  static const List<Offset> _referenceCoordinates = [
-    Offset(70, 190),
-    Offset(95, 142),
-    Offset(130, 106),
-    Offset(178, 81),
-    Offset(213, 75),
-    Offset(262, 81),
-    Offset(322, 105),
-    Offset(360, 153),
-    Offset(372, 238),
-    Offset(359, 310),
-    Offset(323, 346),
-    Offset(274, 370),
-    Offset(238, 370),
-    Offset(179, 357),
-    Offset(142, 337),
-    Offset(94, 285),
-  ];
-
   ColorVisionDiagnosis(this.userColorOrder, this.referenceColors);
 
-  DiagnosisResult analyze() {
-    final userOrder = _getUserOrderIndices();
-    final errors = _computeErrors(userOrder);
-    final unusedCaps = userColorOrder.where((c) => c == null).length;
-
-    double totalLength = 0;
-    double protanLength = 0;
-    double deutanLength = 0;
-    double tritanLength = 0;
-
-    for (int i = 1; i < userOrder.length; i++) {
-      final prevIndex = userOrder[i - 1];
-      final currIndex = userOrder[i];
-
-      if (_isValidIndex(prevIndex) && _isValidIndex(currIndex)) {
-        final dx =
-            _referenceCoordinates[currIndex].dx -
-            _referenceCoordinates[prevIndex].dx;
-        final dy =
-            _referenceCoordinates[currIndex].dy -
-            _referenceCoordinates[prevIndex].dy;
-        final length = sqrt(dx * dx + dy * dy);
-        final slope = atan2(dy, dx);
-
-        totalLength += length;
-
-        // Categorize by slope
-        final adjustedSlope = slope < 0 ? pi + slope : slope;
-        if (adjustedSlope < 1.54) {
-          protanLength += length;
-        } else if (adjustedSlope < 2.6) {
-          deutanLength += length;
-        } else {
-          tritanLength += length;
-        }
-      }
+  DiagnosisResult analyze({bool debug = false, double useAngleCutoff = 5.0}) {
+    final validColors = userColorOrder.whereType<Color>().toList();
+    final n = validColors.length;
+    if (n < 2) {
+      return const DiagnosisResult.empty();
     }
 
-    return _determineDiagnosis(
-      errors.length,
-      unusedCaps,
-      totalLength,
-      protanLength,
-      deutanLength,
-      tritanLength,
+    final luvCaps = validColors.map((c) => _toLuv(c)).toList();
+
+    double TES = 0.0;
+    List<_Vec> segments = [];
+
+    for (int i = 1; i < luvCaps.length; i++) {
+      final dx = luvCaps[i].u - luvCaps[i - 1].u;
+      final dy = luvCaps[i].v - luvCaps[i - 1].v;
+      final segLen = sqrt(dx * dx + dy * dy);
+      TES += segLen;
+      segments.add(_Vec(dx, dy, segLen));
+    }
+
+    // --- Auto-calibrate TES scaling ---
+    final refLuv = referenceColors.map((c) => _toLuv(c)).toList();
+    double refTES = 0.0;
+    for (int i = 1; i < refLuv.length; i++) {
+      final dx = refLuv[i].u - refLuv[i - 1].u;
+      final dy = refLuv[i].v - refLuv[i - 1].v;
+      refTES += sqrt(dx * dx + dy * dy);
+    }
+    final refAvgDeltaE = refTES / (refLuv.length - 1);
+    final tesScale = 3.0 / refAvgDeltaE;
+
+    final TESnorm = TES * tesScale;
+    final cIndex = (TES / (n - 1)) * tesScale;
+
+    // --- Compute user angle ---
+    double sumDx = 0.0, sumDy = 0.0;
+    for (final s in segments) {
+      sumDx += s.dx * s.len;
+      sumDy += s.dy * s.len;
+    }
+
+    double meanAngleRad = atan2(sumDy, sumDx);
+    double meanAngleDeg = _normalizeAngleDegrees(meanAngleRad * 180 / pi);
+
+    // --- Auto-calibrate rotation offset using reference sequence ---
+    double refSumDx = 0.0, refSumDy = 0.0;
+    for (int i = 1; i < refLuv.length; i++) {
+      final dx = refLuv[i].u - refLuv[i - 1].u;
+      final dy = refLuv[i].v - refLuv[i - 1].v;
+      refSumDx += dx;
+      refSumDy += dy;
+    }
+    double refAngleDeg = _normalizeAngleDegrees(
+      atan2(refSumDy, refSumDx) * 180 / pi,
     );
-  }
 
-  bool _isValidIndex(int index) =>
-      index >= 0 && index < _referenceCoordinates.length;
-
-  List<int> _getUserOrderIndices() {
-    final indices = [0]; // reference first
-    for (final color in userColorOrder) {
-      indices.add(color != null ? _findColorIndex(color) : -1);
-    }
-    return indices;
-  }
-
-  int _findColorIndex(Color color) {
-    final value = color.toARGB32();
-    for (int i = 0; i < referenceColors.length; i++) {
-      if (value == referenceColors[i].toARGB32()) return i;
-    }
-    return -1;
-  }
-
-  // More tolerant error detection: ignore small adjacent mistakes by requiring a bigger jump
-  List<int> _computeErrors(List<int> userOrder) {
-    final List<int> errors = [];
-    for (int i = 1; i < userOrder.length; i++) {
-      final prev = userOrder[i - 1];
-      final curr = userOrder[i];
-      // require a jump of 3 or more positions to count as an error (reduces false positives)
-      if (prev != -1 && curr != -1 && (curr - prev).abs() >= 3) {
-        if (!errors.contains(prev)) errors.add(prev);
-        if (!errors.contains(curr)) errors.add(curr);
-      }
-    }
-    return errors;
-  }
-
-  DiagnosisResult _determineDiagnosis(
-    int errors,
-    int unused,
-    double total,
-    double protan,
-    double deutan,
-    double tritan,
-  ) {
-    final result = _calculateDiagnosis(
-      errors,
-      unused,
-      total,
-      protan,
-      deutan,
-      tritan,
+// Apply fine-tuning offset (~+35°) to align your color palette’s "normal" axis to 0°
+    double calibratedAngleDeg = _normalizeAngleDegrees(
+      meanAngleDeg - refAngleDeg + 35,
     );
+
+    // --- Determine type (Protan/Deutan/Tritan) ---
+    String type = "NON-SPECIFIC";
+    final absAngle = calibratedAngleDeg.abs();
+    if (absAngle >= 60 && absAngle <= 120) {
+      type = "TRITAN";
+    } else if (absAngle <= 5) {
+      type = "NORMAL";
+    } else if (calibratedAngleDeg > 5) {
+      type = "PROTAN";
+    } else {
+      type = "DEUTAN";
+    }
+
+
+    // --- Percent similarity calculation ---
+    final dProt = _angularDistanceDeg(calibratedAngleDeg, 25.0);
+    final dDeut = _angularDistanceDeg(calibratedAngleDeg, -25.0);
+    final dTrit = _angularDistanceDeg(calibratedAngleDeg, 100.0);
+
+    double score(double d) => max(0.0, (60.0 - d) / 60.0);
+    final sProt = score(dProt);
+    final sDeut = score(dDeut);
+    final sTrit = score(dTrit);
+    final sumScores = sProt + sDeut + sTrit;
+
+    int protPct = 0, deutPct = 0, tritPct = 0;
+    if (sumScores > 0) {
+      protPct = (100 * sProt / sumScores).round();
+      deutPct = (100 * sDeut / sumScores).round();
+      tritPct = (100 * sTrit / sumScores).round();
+    }
+
+    int crossings = _computeCrossings(luvCaps);
+    double sIndex = sqrt(pow(TESnorm, 2) / (TESnorm + crossings + 0.0001));
+
+    final failed = (TESnorm > 18.0) || (cIndex > 1.78);
+    final severity = _severityFromCIndex(cIndex, TESnorm);
+
+    final diagnosis = failed
+        ? "Color Vision Deficiency - $severity $type"
+        : "Normal Color Vision";
+
+    if (debug) {
+      print("===== Farnsworth D15 Analysis =====");
+      print(
+        "Ref ΔE avg: ${refAvgDeltaE.toStringAsFixed(2)} → TES scale: ${tesScale.toStringAsFixed(3)}",
+      );
+      print(
+        "Raw TES: ${TES.toStringAsFixed(2)} → Scaled TES: ${TESnorm.toStringAsFixed(2)}",
+      );
+      print("C-index: ${cIndex.toStringAsFixed(2)}");
+      print(
+        "Raw angle: ${meanAngleDeg.toStringAsFixed(2)}°, "
+        "Ref angle: ${refAngleDeg.toStringAsFixed(2)}°, "
+        "→ Calibrated: ${calibratedAngleDeg.toStringAsFixed(2)}°",
+      );
+      print("Crossings: $crossings");
+      print("S-index: ${sIndex.toStringAsFixed(2)}");
+      print("Type: $type");
+      print("Severity: $severity");
+      print("Protan: $protPct%, Deutan: $deutPct%, Tritan: $tritPct%");
+      print("===================================");
+    }
 
     return DiagnosisResult(
-      diagnosis: result.$1,
-      errors: errors,
-      unusedCaps: unused,
-      totalLength: total.round(),
-      protanPercentage: _calcPercentage(protan, total),
-      deutanPercentage: _calcPercentage(deutan, total),
-      tritanPercentage: _calcPercentage(tritan, total),
-      severity: result.$2,
-      type: result.$3,
+      diagnosis: diagnosis,
+      errors: crossings,
+      unusedCaps: userColorOrder.where((c) => c == null).length,
+      totalLength: TESnorm.round(),
+      cIndex: cIndex,
+      angleDeg: calibratedAngleDeg,
+      protanPercentage: protPct,
+      deutanPercentage: deutPct,
+      tritanPercentage: tritPct,
+      severity: severity,
+      type: type,
     );
   }
 
-  // Updated thresholds and logic to avoid false-positive "mild protan" for very small deviations
-  (String, String, String) _calculateDiagnosis(
-    int errors,
-    int unused,
-    double total,
-    double protan,
-    double deutan,
-    double tritan,
-  ) {
-    // If very few errors and all caps used -> normal
-    if (errors <= 1 && unused == 0 && total < 350) {
-      return ("NORMAL RESULT", "NORMAL", "NORMAL");
+  // -------------------------------
+  // Helper functions
+  // -------------------------------
+  int _computeCrossings(List<_CIELuv> caps) {
+    int crossings = 0;
+    List<double> angles = [];
+    for (int i = 1; i < caps.length; i++) {
+      final dx = caps[i].u - caps[i - 1].u;
+      final dy = caps[i].v - caps[i - 1].v;
+      angles.add(atan2(dy, dx));
     }
-
-    // If only small issues (<=2 errors) but some unused, treat as non-specific mild
-    if (errors <= 2 && total < 400) {
-      if (unused == 0) return ("NORMAL RESULT", "NORMAL", "NORMAL");
-      if (unused == 1) {
-        return (
-          "NON-SPECIFIC COLOR VISION DEFICIENCY - MILD",
-          "MILD",
-          "NON-SPECIFIC",
-        );
-      }
-      if (unused == 2) {
-        return (
-          "NON-SPECIFIC COLOR VISION DEFICIENCY - MODERATE",
-          "MODERATE",
-          "NON-SPECIFIC",
-        );
-      }
-      return (
-        "NON-SPECIFIC COLOR VISION DEFICIENCY - SEVERE",
-        "SEVERE",
-        "NON-SPECIFIC",
-      );
+    for (int i = 1; i < angles.length; i++) {
+      if ((angles[i] - angles[i - 1]).abs() > pi / 2) crossings++;
     }
-
-    // Convert to percentages to reason about dominance
-    final pPerc = _calcPercentage(protan, total);
-    final dPerc = _calcPercentage(deutan, total);
-    final tPerc = _calcPercentage(tritan, total);
-
-    // Determine dominant channel but require both an absolute threshold and a margin over second best
-    final percentages = [pPerc, dPerc, tPerc];
-    final maxPerc = percentages.reduce(max);
-    final secondBest = (percentages..sort()).reversed
-        .skip(1)
-        .firstWhere((_) => true, orElse: () => 0);
-
-    // convert to doubles for comparisons
-    final maxDouble = maxPerc.toDouble();
-    final secondDouble = secondBest.toDouble();
-
-    // dominance criteria: at least 40% of total vector length and at least 12 percentage points higher than second best
-    const dominanceThreshold = 40;
-    const dominanceMargin = 12;
-
-    if (maxPerc >= dominanceThreshold &&
-        (maxDouble - secondDouble) >= dominanceMargin) {
-      if (pPerc == maxPerc) {
-        return (
-          "COLOR VISION DEFICIENCY - ",
-          _getSeverityFromPercent(pPerc, unused),
-          "PROTAN",
-        );
-      } else if (dPerc == maxPerc) {
-        return (
-          "COLOR VISION DEFICIENCY - ",
-          _getSeverityFromPercent(dPerc, unused),
-          "DEUTAN",
-        );
-      } else if (tPerc == maxPerc) {
-        return (
-          "COLOR VISION DEFICIENCY - ",
-          _getSeverityFromPercent(tPerc, unused, isTritan: true),
-          "TRITAN",
-        );
-      }
-    }
-
-    // If nothing strongly dominant, classify as non-specific moderate
-    return (
-      "NON-SPECIFIC COLOR VISION DEFICIENCY - MODERATE",
-      "MODERATE",
-      "NON-SPECIFIC",
-    );
+    return crossings;
   }
 
-  String _getSeverityFromPercent(
-    int percent,
-    int unused, {
-    bool isTritan = false,
-  }) {
-    // map percentage to severity with some empirical thresholds
-    if (percent < 45 && unused < 2) return "MILD";
-    if (percent < 70 && unused < 3) return "MODERATE";
-    return "SEVERE";
+  String _severityFromCIndex(double cIndex, double TES) {
+    if (TES <= 50 && cIndex <= 3.5) return "Normal";
+    if (cIndex <= 4.0) return "Mild";
+    if (cIndex <= 5.0) return "Moderate";
+    return "Severe";
   }
 
-  // String _getSeverity(double length, int unused, {bool isTritan = false}) {
-  //   if (length < 700 && unused < 2) return "MILD";
-  //   if (length < 1100 && unused < 3) return "MODERATE";
-  //   return "SEVERE";
-  // }
 
-  int _calcPercentage(double part, double total) =>
-      total > 0 ? (part / total * 100).round() : 0;
+  double _normalizeAngleDegrees(double angle) {
+    double a = angle % 360;
+    if (a > 180) a -= 360;
+    if (a <= -180) a += 360;
+    return a;
+  }
+
+  double _angularDistanceDeg(double a, double b) {
+    final diff = ((a - b) % 360).abs();
+    return diff <= 180 ? diff : 360 - diff;
+  }
+
+  _CIELuv _toLuv(Color color) {
+    double r = color.red / 255, g = color.green / 255, b = color.blue / 255;
+
+    r = (r > 0.04045) ? pow((r + 0.055) / 1.055, 2.4).toDouble() : r / 12.92;
+    g = (g > 0.04045) ? pow((g + 0.055) / 1.055, 2.4).toDouble() : g / 12.92;
+    b = (b > 0.04045) ? pow((b + 0.055) / 1.055, 2.4).toDouble() : b / 12.92;
+
+    double X = r * 0.4124 + g * 0.3576 + b * 0.1805;
+    double Y = r * 0.2126 + g * 0.7152 + b * 0.0722;
+    double Z = r * 0.0193 + g * 0.1192 + b * 0.9505;
+
+    const Xn = 0.95047, Yn = 1.0, Zn = 1.08883;
+    double denom = (X + 15 * Y + 3 * Z);
+    double uPrime = denom == 0 ? 0 : (4 * X) / denom;
+    double vPrime = denom == 0 ? 0 : (9 * Y) / denom;
+    double ur = (4 * Xn) / (Xn + 15 * Yn + 3 * Zn);
+    double vr = (9 * Yn) / (Xn + 15 * Yn + 3 * Zn);
+
+    double L = (Y / Yn > pow(6 / 29, 3))
+        ? 116 * pow(Y / Yn, 1 / 3) - 16
+        : (Y / Yn) * pow(29 / 3, 3);
+
+    double u = 13 * L * (uPrime - ur);
+    double v = 13 * L * (vPrime - vr);
+    return _CIELuv(L, u, v);
+  }
 }
 
+class _Vec {
+  final double dx, dy, len;
+  _Vec(this.dx, this.dy, this.len);
+}
+
+class _CIELuv {
+  final double L, u, v;
+  _CIELuv(this.L, this.u, this.v);
+}
+
+// ---------------------------------------------
+// DIAGNOSIS RESULT MODEL
+// ---------------------------------------------
 class DiagnosisResult {
   final String diagnosis;
   final int errors;
   final int unusedCaps;
   final int totalLength;
+  final double cIndex;
+  final double angleDeg;
   final int protanPercentage;
   final int deutanPercentage;
   final int tritanPercentage;
@@ -416,10 +427,25 @@ class DiagnosisResult {
     required this.errors,
     required this.unusedCaps,
     required this.totalLength,
+    required this.cIndex,
+    required this.angleDeg,
     required this.protanPercentage,
     required this.deutanPercentage,
     required this.tritanPercentage,
     required this.severity,
     required this.type,
   });
+
+  const DiagnosisResult.empty()
+    : diagnosis = "Insufficient data",
+      errors = 0,
+      unusedCaps = 15,
+      totalLength = 0,
+      cIndex = 0,
+      angleDeg = 0,
+      protanPercentage = 0,
+      deutanPercentage = 0,
+      tritanPercentage = 0,
+      severity = "N/A",
+      type = "N/A";
 }

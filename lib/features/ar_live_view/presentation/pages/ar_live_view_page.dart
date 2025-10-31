@@ -1,15 +1,14 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:truehue/main.dart';
-
 import 'package:truehue/shared/presentation/widgets/nav_button.dart';
 import 'package:truehue/features/take_a_photo/presentation/pages/take_a_photo_page.dart';
 import 'package:truehue/features/select_a_photo/presentation/pages/select_a_photo_page.dart';
 import 'package:truehue/features/color_library/presentation/pages/color_library_page.dart';
+import 'package:truehue/core/algorithm/knn_color_matcher.dart';
 
 void openARLiveView(
   BuildContext context,
@@ -50,8 +49,6 @@ void openColorLibraryPage(BuildContext context) {
   );
 }
 
-// ------------------- AR LIVE VIEW PAGE -------------------
-
 class ArLiveViewPage extends StatefulWidget {
   final bool assistiveMode;
   final String? simulationType;
@@ -76,26 +73,20 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
   bool _showInstructions = true;
 
   Color _sampledColor = Colors.transparent;
-  String _colorName = "";
+  String _colorFamily = "";
   int _r = 0, _g = 0, _b = 0;
-  String _previousColorName = "";
+  String _previousColorFamily = "";
   bool _isSpeakingContinuously = false;
   Timer? _ttsTimer;
 
-  // Improved color palette with better RGB values for accuracy
-  final List<Map<String, Color>> simplifiedColors = [
-    {'red': const Color(0xFFE53935)}, // Pure red
-    {'orange': const Color(0xFFFF6F00)}, // Pure orange
-    {'yellow': const Color(0xFFFDD835)}, // Bright yellow
-    {'green': const Color(0xFF43A047)}, // True green
-    {'blue': const Color(0xFF1E88E5)}, // Clear blue
-    {'purple': const Color(0xFF8E24AA)}, // True purple
-    {'pink': const Color(0xFFEC407A)}, // Bright pink
-    {'brown': const Color(0xFF6D4C41)}, // Natural brown
-    {'black': const Color(0xFF212121)}, // Near black
-    {'white': const Color(0xFFFAFAFA)}, // Near white
-    {'gray': const Color(0xFF9E9E9E)}, // Middle gray
-  ];
+  // ------------------ Temporal smoothing ------------------
+  final int _smoothingFrames = 5;
+  final List<int> _rBuffer = [];
+  final List<int> _gBuffer = [];
+  final List<int> _bBuffer = [];
+
+  // ------------------ Frame throttling ------------------
+  DateTime _lastFrameProcessed = DateTime.now();
 
   @override
   void initState() {
@@ -107,7 +98,7 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
     });
   }
 
-  // ---------------- TTS (FIXED) ----------------
+  // ------------------ TTS ------------------
   Future<void> _initializeTts() async {
     try {
       await _tts.setLanguage("en-US");
@@ -115,16 +106,10 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
       await _tts.setVolume(1.0);
       await _tts.setPitch(1.0);
 
-      _tts.setCompletionHandler(() {
-        debugPrint("✅ TTS completed");
-      });
-
-      _tts.setErrorHandler((msg) {
-        debugPrint("❌ TTS Error: $msg");
-      });
+      _tts.setCompletionHandler(() => debugPrint("✅ TTS completed"));
+      _tts.setErrorHandler((msg) => debugPrint("❌ TTS Error: $msg"));
 
       setState(() => _ttsReady = true);
-      debugPrint("✅ TTS initialized successfully");
     } catch (e) {
       debugPrint("❌ TTS initialization error: $e");
       setState(() => _ttsReady = false);
@@ -132,30 +117,21 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
   }
 
   void _toggleContinuousTTS() async {
-    if (!_ttsReady || !widget.assistiveMode) {
-      debugPrint("❌ TTS not ready or not in assistive mode");
-      return;
-    }
+    if (!_ttsReady || !widget.assistiveMode) return;
 
     if (_isSpeakingContinuously) {
-      debugPrint("🔇 Stopping continuous TTS");
       _ttsTimer?.cancel();
       await _tts.stop();
       setState(() => _isSpeakingContinuously = false);
     } else {
-      debugPrint("🔊 Starting continuous TTS");
       setState(() => _isSpeakingContinuously = true);
-      _previousColorName = "";
-
-      // Speak immediately if color is available
-      if (_colorName.isNotEmpty) {
-        await _speakColor(_colorName);
-      }
+      _previousColorFamily = "";
+      if (_colorFamily.isNotEmpty) await _speakColor(_colorFamily);
 
       _ttsTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
         if (!_isSpeakingContinuously || !mounted) return;
-        if (_colorName.isNotEmpty && _colorName != _previousColorName) {
-          await _speakColor(_colorName);
+        if (_colorFamily.isNotEmpty && _colorFamily != _previousColorFamily) {
+          await _speakColor(_colorFamily);
         }
       });
     }
@@ -163,10 +139,7 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
 
   Future<void> _speakColor(String color) async {
     if (!_ttsReady) return;
-
-    _previousColorName = color;
-    debugPrint("🔊 Speaking: $color");
-
+    _previousColorFamily = color;
     try {
       await _tts.stop();
       await Future.delayed(const Duration(milliseconds: 50));
@@ -176,7 +149,7 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
     }
   }
 
-  // ---------------- CAMERA ----------------
+  // ------------------ Camera ------------------
   Future<void> _initializeCamera() async {
     try {
       final cameras = await availableCameras();
@@ -199,11 +172,10 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
       await _controller?.stopImageStream();
       setState(() {
         _isScanning = false;
-        _colorName = "";
+        _colorFamily = "";
         _sampledColor = Colors.transparent;
       });
 
-      // Stop continuous TTS when scanning stops
       if (_isSpeakingContinuously) {
         _ttsTimer?.cancel();
         await _tts.stop();
@@ -218,6 +190,10 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
   }
 
   Future<void> _processCameraImage(CameraImage image) async {
+    final now = DateTime.now();
+    if (now.difference(_lastFrameProcessed).inMilliseconds < 100) return;
+    _lastFrameProcessed = now;
+
     if (_isProcessing) return;
     _isProcessing = true;
 
@@ -225,147 +201,118 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
       final rgb = _convertYUV420ToImage(image);
       if (rgb == null) return;
 
+      // ------------------ Adaptive Sampling ------------------
+      final regionSize = (rgb.width / 40).round().clamp(3, 10);
       final centerX = rgb.width ~/ 2;
       final centerY = rgb.height ~/ 2;
-      final regionSize = 10; // Even larger for stability
 
       List<int> reds = [];
       List<int> greens = [];
       List<int> blues = [];
 
-      // Sample center region
-      for (int dy = -regionSize; dy <= regionSize; dy++) {
-        for (int dx = -regionSize; dx <= regionSize; dx++) {
+      for (int dy = -regionSize; dy <= regionSize; dy += 2) {
+        for (int dx = -regionSize; dx <= regionSize; dx += 2) {
           final x = (centerX + dx).clamp(0, rgb.width - 1);
           final y = (centerY + dy).clamp(0, rgb.height - 1);
           final pixel = rgb.getPixel(x, y);
-
           reds.add(pixel.r.toInt());
           greens.add(pixel.g.toInt());
           blues.add(pixel.b.toInt());
         }
       }
 
-      // Use median for better accuracy
       final avgR = _median(reds);
       final avgG = _median(greens);
       final avgB = _median(blues);
 
-      // Apply adaptive brightness boost for dim lighting
-      final brightness = 0.299 * avgR + 0.587 * avgG + 0.114 * avgB;
-      double boostFactor = 1.0;
+      // ------------------ Temporal Smoothing ------------------
+      _rBuffer.add(avgR);
+      _gBuffer.add(avgG);
+      _bBuffer.add(avgB);
+      if (_rBuffer.length > _smoothingFrames) _rBuffer.removeAt(0);
+      if (_gBuffer.length > _smoothingFrames) _gBuffer.removeAt(0);
+      if (_bBuffer.length > _smoothingFrames) _bBuffer.removeAt(0);
 
-      if (brightness < 30) {
-        boostFactor = 3.0; // Strong boost for very dim
-      } else if (brightness < 60) {
-        boostFactor = 2.2; // Medium boost
-      } else if (brightness < 100) {
-        boostFactor = 1.5; // Light boost
-      }
+      final smoothedR = (_rBuffer.reduce((a, b) => a + b) / _rBuffer.length)
+          .round();
+      final smoothedG = (_gBuffer.reduce((a, b) => a + b) / _gBuffer.length)
+          .round();
+      final smoothedB = (_bBuffer.reduce((a, b) => a + b) / _bBuffer.length)
+          .round();
 
-      // Apply boost while preserving color ratios
-      int boostedR = (avgR * boostFactor).clamp(0, 255).toInt();
-      int boostedG = (avgG * boostFactor).clamp(0, 255).toInt();
-      int boostedB = (avgB * boostFactor).clamp(0, 255).toInt();
-
-      // Enhance saturation for better color detection
-      final pixelColor = Color.fromARGB(255, boostedR, boostedG, boostedB);
-      final hsl = HSLColor.fromColor(pixelColor);
-
-      // Boost saturation for dim colors
-      double newSaturation = hsl.saturation;
-      if (brightness < 80 && hsl.saturation > 0.1) {
-        newSaturation = (hsl.saturation * 1.8).clamp(0.0, 1.0);
-      }
-
-      final enhancedHsl = hsl.withSaturation(newSaturation);
-
-      String matchedColorName;
-      Color matchedColor;
-
-      // More aggressive thresholds to avoid gray/black/brown bias
-      if (hsl.lightness < 0.12 && hsl.saturation < 0.15) {
-        // Only truly dark colors are black
-        matchedColorName = 'black';
-        matchedColor = simplifiedColors.firstWhere(
-          (c) => c.containsKey('black'),
-        )['black']!;
-      } else if (hsl.lightness > 0.88) {
-        // Only very bright colors are white
-        matchedColorName = 'white';
-        matchedColor = simplifiedColors.firstWhere(
-          (c) => c.containsKey('white'),
-        )['white']!;
-      } else if (hsl.saturation < 0.12 &&
-          hsl.lightness > 0.25 &&
-          hsl.lightness < 0.75) {
-        // Only neutral mid-tones are gray
-        matchedColorName = 'gray';
-        matchedColor = simplifiedColors.firstWhere(
-          (c) => c.containsKey('gray'),
-        )['gray']!;
-      } else {
-        // Use enhanced color for chromatic matching
-        double minDistance = double.infinity;
-        matchedColorName = 'red';
-        matchedColor = simplifiedColors.first.values.first;
-
-        for (var colorMap in simplifiedColors) {
-          final entry = colorMap.entries.first;
-          if (entry.key == 'black' ||
-              entry.key == 'white' ||
-              entry.key == 'gray') {
-            continue;
-          }
-
-          final targetColor = entry.value;
-          // Use enhanced color for better dim light performance
-          final distance = _colorDistanceHSL(
-            enhancedHsl,
-            HSLColor.fromColor(targetColor),
-          );
-
-          if (distance < minDistance) {
-            minDistance = distance;
-            matchedColorName = entry.key;
-            matchedColor = targetColor;
-          }
+      // ------------------ Black & White Detection ------------------
+      if (smoothedR > 240 && smoothedG > 240 && smoothedB > 240) {
+        if (mounted) {
+          setState(() {
+            _sampledColor = Colors.white;
+            _colorFamily = "White";
+            _r = smoothedR;
+            _g = smoothedG;
+            _b = smoothedB;
+          });
         }
+        _isProcessing = false;
+        return;
+      } else if (smoothedR < 15 && smoothedG < 15 && smoothedB < 15) {
+        if (mounted) {
+          setState(() {
+            _sampledColor = Colors.black;
+            _colorFamily = "Black";
+            _r = smoothedR;
+            _g = smoothedG;
+            _b = smoothedB;
+          });
+        }
+        _isProcessing = false;
+        return;
       }
 
-      if (mounted) {
-        setState(() {
-          _sampledColor = matchedColor;
-          _colorName = matchedColorName;
-          _r = avgR;
-          _g = avgG;
-          _b = avgB;
-        });
+      // ------------------ Adaptive Brightness ------------------
+      final brightness =
+          0.299 * smoothedR + 0.587 * smoothedG + 0.114 * smoothedB;
+      double boostFactor = 1.0;
+      if (brightness < 30)
+        boostFactor = 3.0;
+      else if (brightness < 60)
+        boostFactor = 2.2;
+      else if (brightness < 100)
+        boostFactor = 1.5;
+      else if (brightness > 240)
+        boostFactor = 0.9;
+
+      int adjustedR = (smoothedR * boostFactor).clamp(0, 255).toInt();
+      int adjustedG = (smoothedG * boostFactor).clamp(0, 255).toInt();
+      int adjustedB = (smoothedB * boostFactor).clamp(0, 255).toInt();
+
+      // ------------------ KNN Color Matching ------------------
+      final colorFamily = ColorMatcher.getColorFamily(
+        adjustedR,
+        adjustedG,
+        adjustedB,
+      );
+      final displayColor = Color.fromARGB(255, adjustedR, adjustedG, adjustedB);
+
+      // ------------------ Update UI ------------------
+      const threshold = 5;
+      if ((_r - smoothedR).abs() > threshold ||
+          (_g - smoothedG).abs() > threshold ||
+          (_b - smoothedB).abs() > threshold ||
+          _colorFamily != colorFamily) {
+        if (mounted) {
+          setState(() {
+            _sampledColor = displayColor;
+            _colorFamily = colorFamily;
+            _r = smoothedR;
+            _g = smoothedG;
+            _b = smoothedB;
+          });
+        }
       }
     } catch (e) {
       debugPrint('❌ Error processing frame: $e');
     } finally {
       _isProcessing = false;
     }
-  }
-
-  // HSL-based color distance for better dim light matching
-  double _colorDistanceHSL(HSLColor c1, HSLColor c2) {
-    // Hue distance (circular)
-    double hueDiff = (c1.hue - c2.hue).abs();
-    if (hueDiff > 180) hueDiff = 360 - hueDiff;
-    hueDiff = hueDiff / 180.0; // Normalize to 0-1
-
-    // Saturation and lightness differences
-    double satDiff = (c1.saturation - c2.saturation).abs();
-    double lightDiff = (c1.lightness - c2.lightness).abs();
-
-    // Weight hue heavily for chromatic colors
-    return sqrt(
-      hueDiff * hueDiff * 3.0 + // Hue is most important
-          satDiff * satDiff * 0.5 +
-          lightDiff * lightDiff * 0.5,
-    );
   }
 
   int _median(List<int> values) {
@@ -414,15 +361,6 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
     }
   }
 
-  @override
-  void dispose() {
-    _controller?.dispose();
-    _ttsTimer?.cancel();
-    _tts.stop();
-    super.dispose();
-  }
-
-  // ---------------- COLOR FILTER / SIMULATION ----------------
   ColorFilter _getColorFilter(String type) {
     switch (type) {
       case 'deuteranopia':
@@ -498,7 +436,14 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
     }
   }
 
-  // ---------------- BUILD ----------------
+  @override
+  void dispose() {
+    _controller?.dispose();
+    _ttsTimer?.cancel();
+    _tts.stop();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -544,8 +489,8 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
                     ),
                   ),
                 ),
-                // Color card at top
-                if (_isScanning && _colorName.isNotEmpty)
+                // Color card
+                if (_isScanning && _colorFamily.isNotEmpty)
                   Positioned(
                     top: MediaQuery.of(context).padding.top + 70,
                     left: 16,
@@ -583,7 +528,7 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  _colorName.toUpperCase(),
+                                  _colorFamily.toUpperCase(),
                                   style: const TextStyle(
                                     fontSize: 20,
                                     fontWeight: FontWeight.bold,
@@ -656,7 +601,7 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
                                 const SizedBox(height: 16),
                                 Text(
                                   widget.assistiveMode
-                                      ? "1. Tap START to begin\n2. Point the center circle at objects\n3. See color name appear at top\n4. Tap speaker icon to hear color"
+                                      ? "1. Tap START to begin\n2. Point the center circle at objects\n3. See color family appear at top\n4. Tap speaker icon to hear color"
                                       : "1. This shows how ${widget.simulationType} affects vision\n2. Tap START to identify colors\n3. Move camera to explore",
                                   style: const TextStyle(
                                     color: Colors.white,
@@ -735,7 +680,6 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
           }
         },
       ),
-
       bottomNavigationBar: Container(
         color: const Color.fromARGB(47, 3, 0, 52),
         padding: const EdgeInsets.symmetric(vertical: 10),
