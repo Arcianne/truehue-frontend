@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:truehue/main.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -8,6 +9,17 @@ import 'package:truehue/features/select_a_photo/presentation/pages/select_a_phot
 import 'package:truehue/features/take_a_photo/presentation/pages/take_a_photo_page.dart';
 import 'package:truehue/core/algorithm/knn_color_matcher.dart';
 import 'package:truehue/features/home/presentation/pages/home.dart';
+import 'package:truehue/features/color_library/presentation/pages/red_family.dart';
+import 'package:truehue/features/color_library/presentation/pages/pink_family.dart';
+import 'package:truehue/features/color_library/presentation/pages/orange_family.dart';
+import 'package:truehue/features/color_library/presentation/pages/yellow_family.dart';
+import 'package:truehue/features/color_library/presentation/pages/green_family.dart';
+import 'package:truehue/features/color_library/presentation/pages/blue_family.dart';
+import 'package:truehue/features/color_library/presentation/pages/purple_family.dart';
+import 'package:truehue/features/color_library/presentation/pages/brown_family.dart';
+import 'package:truehue/features/color_library/presentation/pages/white_family.dart';
+import 'package:truehue/features/color_library/presentation/pages/gray_family.dart';
+import 'package:truehue/features/color_library/presentation/pages/black_family.dart';
 
 Future<void> openARLiveView(BuildContext context) async {
   final prefs = await SharedPreferences.getInstance();
@@ -22,7 +34,6 @@ Future<void> openARLiveView(BuildContext context) async {
   if (!context.mounted) return;
 
   Navigator.pushReplacement(
-    // Keep this
     context,
     MaterialPageRoute(
       builder: (context) => ArLiveViewPage(
@@ -58,11 +69,8 @@ void openColorLibraryPage(BuildContext context) {
 
 void openHomePage(BuildContext context) {
   Navigator.pushReplacement(
-    // NEW: Add this function
     context,
-    MaterialPageRoute(
-      builder: (context) => const Home(),
-    ), // Replace with your actual home page widget name
+    MaterialPageRoute(builder: (context) => const Home()),
   );
 }
 
@@ -75,9 +83,9 @@ class ColorLibraryPage extends StatefulWidget {
 
 class _ColorLibraryPageState extends State<ColorLibraryPage> {
   String _searchQuery = '';
+  bool _sortAlphabetical = true;
 
   String _determineFamilyFromName(String colorName) {
-    // Simple categorization based on name - you might want to use the RGB values instead
     final lower = colorName.toLowerCase();
 
     if (lower.contains('red') ||
@@ -173,8 +181,7 @@ class _ColorLibraryPageState extends State<ColorLibraryPage> {
     return 'Other';
   }
 
-  @override
-  Widget build(BuildContext context) {
+  List<MapEntry<String, List<String>>> _getFilteredFamilies() {
     final colorFamilies = [
       'Red',
       'Pink',
@@ -188,6 +195,43 @@ class _ColorLibraryPageState extends State<ColorLibraryPage> {
       'White',
       'Black',
     ];
+
+    final familiesWithColors = <MapEntry<String, List<String>>>[];
+
+    for (final family in colorFamilies) {
+      final familyColors = ColorMatcher.allColorNames
+          .where((name) => _determineFamilyFromName(name) == family)
+          .where(
+            (name) =>
+                _searchQuery.isEmpty ||
+                name.toLowerCase().contains(_searchQuery),
+          )
+          .toList();
+
+      if (familyColors.isNotEmpty) {
+        familiesWithColors.add(MapEntry(family, familyColors));
+      }
+    }
+
+    // Sort families if needed
+    if (!_sortAlphabetical) {
+      familiesWithColors.sort(
+        (a, b) => b.value.length.compareTo(a.value.length),
+      );
+    }
+
+    return familiesWithColors;
+  }
+
+  int _getFilteredCount() {
+    return ColorMatcher.allColorNames
+        .where((name) => name.toLowerCase().contains(_searchQuery))
+        .length;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filteredFamilies = _getFilteredFamilies();
 
     return Scaffold(
       backgroundColor: const Color(0xFF130E64),
@@ -234,11 +278,55 @@ class _ColorLibraryPageState extends State<ColorLibraryPage> {
             ),
           ),
 
+          // Sort/Filter Chips
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                FilterChip(
+                  label: const Text('A-Z'),
+                  selected: _sortAlphabetical,
+                  onSelected: (value) {
+                    setState(() => _sortAlphabetical = value);
+                  },
+                  backgroundColor: Colors.white.withOpacity(0.1),
+                  selectedColor: Colors.white.withOpacity(0.3),
+                  labelStyle: TextStyle(
+                    color: Colors.white,
+                    fontWeight: _sortAlphabetical
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilterChip(
+                  label: const Text('By Count'),
+                  selected: !_sortAlphabetical,
+                  onSelected: (value) {
+                    setState(() => _sortAlphabetical = !value);
+                  },
+                  backgroundColor: Colors.white.withOpacity(0.1),
+                  selectedColor: Colors.white.withOpacity(0.3),
+                  labelStyle: TextStyle(
+                    color: Colors.white,
+                    fontWeight: !_sortAlphabetical
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
           // Total Colors Count
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Text(
-              '${ColorMatcher.colorCount} unique colors',
+              _searchQuery.isEmpty
+                  ? '${ColorMatcher.colorCount} unique colors'
+                  : '${_getFilteredCount()} colors found',
               style: TextStyle(
                 color: Colors.white.withOpacity(0.7),
                 fontSize: 14,
@@ -247,16 +335,45 @@ class _ColorLibraryPageState extends State<ColorLibraryPage> {
           ),
           const SizedBox(height: 16),
 
-          // Color Families List
+          // Color Families List or Empty State
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: colorFamilies.length,
-              itemBuilder: (context, index) {
-                final family = colorFamilies[index];
-                return _buildColorFamilyCard(family);
-              },
-            ),
+            child: filteredFamilies.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.search_off,
+                          size: 64,
+                          color: Colors.white.withOpacity(0.3),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No colors found',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.7),
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Try a different search term',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.5),
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: filteredFamilies.length,
+                    itemBuilder: (context, index) {
+                      final entry = filteredFamilies[index];
+                      return _buildColorFamilyCard(entry.key, entry.value);
+                    },
+                  ),
           ),
         ],
       ),
@@ -300,32 +417,62 @@ class _ColorLibraryPageState extends State<ColorLibraryPage> {
     );
   }
 
-  Widget _buildColorFamilyCard(String family) {
-    // Filter colors by family and search query
-    final familyColors = ColorMatcher.allColorNames
-        .where((name) => _determineFamilyFromName(name) == family)
-        .where(
-          (name) =>
-              _searchQuery.isEmpty || name.toLowerCase().contains(_searchQuery),
-        )
-        .toList();
-
-    if (familyColors.isEmpty && _searchQuery.isNotEmpty) {
-      return const SizedBox.shrink();
-    }
-
+  Widget _buildColorFamilyCard(String family, List<String> familyColors) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       color: const Color(0xFF1A1570),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: () {
+          HapticFeedback.lightImpact();
+
+          // Navigate to specific family page
+          Widget familyPage;
+          switch (family) {
+            case 'Red':
+              familyPage = const RedFamilyPage();
+              break;
+            case 'Pink':
+              familyPage = const PinkFamilyPage();
+              break;
+            case 'Orange':
+              familyPage = const OrangeFamilyPage();
+              break;
+            case 'Yellow':
+              familyPage = const YellowFamilyPage();
+              break;
+            case 'Green':
+              familyPage = const GreenFamilyPage();
+              break;
+            case 'Blue':
+              familyPage = const BlueFamilyPage();
+              break;
+            case 'Purple':
+              familyPage = const PurpleFamilyPage();
+              break;
+            case 'Brown':
+              familyPage = const BrownFamilyPage();
+              break;
+            case 'White':
+              familyPage = const WhiteFamilyPage();
+              break;
+            case 'Gray':
+              familyPage = const GrayFamilyPage();
+              break;
+            case 'Black':
+              familyPage = const BlackFamilyPage();
+              break;
+            default:
+              // Fallback to the old detail page for unknown families
+              familyPage = ColorFamilyDetailPage(
+                family: family,
+                colors: familyColors,
+              );
+          }
+
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (context) =>
-                  ColorFamilyDetailPage(family: family, colors: familyColors),
-            ),
+            MaterialPageRoute(builder: (context) => familyPage),
           );
         },
         borderRadius: BorderRadius.circular(12),
@@ -453,45 +600,74 @@ class ColorFamilyDetailPage extends StatelessWidget {
   }
 
   Widget _buildColorItem(String colorName) {
-    // We need to get RGB values - you'll need to expose them from ColorMatcher
-    // For now, using placeholder
+    final rgb = ColorMatcher.getColorRGB(colorName);
+    final color = rgb != null
+        ? Color.fromRGBO(rgb[0], rgb[1], rgb[2], 1.0)
+        : Colors.white;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       color: const Color(0xFF1A1570),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
-          children: [
-            // Color preview circle
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                color: Colors.white, // Replace with actual color
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.3),
-                  width: 2,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          // Optional: Add color detail dialog or copy RGB to clipboard
+          _showColorDetails(colorName, rgb);
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            children: [
+              // Color preview circle
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.3),
+                    width: 2,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 16),
-            // Color name
-            Expanded(
-              child: Text(
-                colorName,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
+              const SizedBox(width: 16),
+              // Color info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      colorName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (rgb != null)
+                      Text(
+                        'RGB(${rgb[0]}, ${rgb[1]}, ${rgb[2]})',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.5),
+                          fontSize: 12,
+                        ),
+                      ),
+                  ],
                 ),
               ),
-            ),
-            const Icon(Icons.chevron_right, color: Colors.white),
-          ],
+              Icon(Icons.info_outline, color: Colors.white.withOpacity(0.5)),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  void _showColorDetails(String colorName, List<int>? rgb) {
+    // Optional: Show a dialog with more color information
+    // You can implement this to show hex values, HSL, etc.
   }
 }

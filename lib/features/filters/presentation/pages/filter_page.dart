@@ -371,7 +371,7 @@ class _FilterPageState extends State<FilterPage> {
       // Store IMAGE coordinates (pixel X, Y) instead of screen coordinates
       _tapPosition = Offset(pixelX.toDouble(), pixelY.toDouble());
       _pickedColor = pickedColor;
-      _colorName = ColorMatcher.getColorName(
+      _colorName = ColorMatcher.getColorFamily(
         _pickedColor.red,
         _pickedColor.green,
         _pickedColor.blue,
