@@ -1,19 +1,127 @@
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:gal/gal.dart';
 import 'package:path_provider/path_provider.dart';
+
 import 'package:truehue/core/algorithm/knn_color_matcher.dart';
 
 enum FilterMode { none, spot, recolor }
 
-// ---------------- LAB COLOR CLASS (MOVED TO TOP-LEVEL) ----------------
+// ---------------- LAB COLOR CLASS ----------------
 class LabColor {
   final double l;
   final double a;
   final double b;
   LabColor(this.l, this.a, this.b);
+}
+
+// ---------------- ISOLATE DATA CLASSES ----------------
+class RecolorData {
+  final Uint8List imageBytes;
+  final int width;
+  final int height;
+  final Color sourceColor;
+  final double tolerance;
+
+  RecolorData({
+    required this.imageBytes,
+    required this.width,
+    required this.height,
+    required this.sourceColor,
+    required this.tolerance,
+  });
+}
+
+class RecolorResult {
+  final List<int> pixelIndices;
+  final List<int> originalReds;
+  final List<int> originalGreens;
+  final List<int> originalBlues;
+
+  RecolorResult({
+    required this.pixelIndices,
+    required this.originalReds,
+    required this.originalGreens,
+    required this.originalBlues,
+  });
+}
+
+// ---------------- ISOLATE FUNCTIONS ----------------
+Future<RecolorResult> _buildMaskInIsolate(RecolorData data) async {
+  final image = img.Image.fromBytes(
+    width: data.width,
+    height: data.height,
+    bytes: data.imageBytes.buffer,
+  );
+
+  final pixelIndices = <int>[];
+  final originalReds = <int>[];
+  final originalGreens = <int>[];
+  final originalBlues = <int>[];
+
+  for (int y = 0; y < image.height; y++) {
+    for (int x = 0; x < image.width; x++) {
+      final pixel = image.getPixelSafe(x, y);
+      final r = pixel.r.toInt();
+      final g = pixel.g.toInt();
+      final b = pixel.b.toInt();
+
+      final currentColor = Color.fromARGB(255, r, g, b);
+
+      if (_deltaE(currentColor, data.sourceColor) < data.tolerance) {
+        pixelIndices.add(y * image.width + x);
+        originalReds.add(r);
+        originalGreens.add(g);
+        originalBlues.add(b);
+      }
+    }
+  }
+
+  return RecolorResult(
+    pixelIndices: pixelIndices,
+    originalReds: originalReds,
+    originalGreens: originalGreens,
+    originalBlues: originalBlues,
+  );
+}
+
+double _deltaE(Color c1, Color c2) {
+  final lab1 = _rgbToLab(c1);
+  final lab2 = _rgbToLab(c2);
+  return sqrt(
+    pow(lab1.l - lab2.l, 2) + pow(lab1.a - lab2.a, 2) + pow(lab1.b - lab2.b, 2),
+  );
+}
+
+LabColor _rgbToLab(Color color) {
+  double r = color.red / 255;
+  double g = color.green / 255;
+  double b = color.blue / 255;
+
+  r = r > 0.04045 ? pow((r + 0.055) / 1.055, 2.4).toDouble() : r / 12.92;
+  g = g > 0.04045 ? pow((g + 0.055) / 1.055, 2.4).toDouble() : g / 12.92;
+  b = b > 0.04045 ? pow((b + 0.055) / 1.055, 2.4).toDouble() : b / 12.92;
+
+  double x = (0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / 0.95047;
+  double y = (0.2126729 * r + 0.7151522 * g + 0.0721750 * b) / 1.00000;
+  double z = (0.0193339 * r + 0.1191920 * g + 0.9503041 * b) / 1.08883;
+
+  double f(double t) =>
+      t > 0.008856 ? pow(t, 1.0 / 3.0).toDouble() : (7.787 * t) + 16.0 / 116.0;
+
+  double fx = f(x);
+  double fy = f(y);
+  double fz = f(z);
+
+  double lVal = (116 * fy) - 16;
+  double aVal = 500 * (fx - fy);
+  double bVal = 200 * (fy - fz);
+
+  return LabColor(lVal, aVal, bVal);
 }
 
 class FilterPage extends StatefulWidget {
@@ -35,26 +143,30 @@ class _FilterPageState extends State<FilterPage> {
   img.Image? _baseImageForCurrentMode;
   FilterMode _currentFilterMode = FilterMode.none;
 
-  // Color picking - NOW STORES IMAGE COORDINATES
-  Offset? _tapPosition; // Image coordinates (pixel X, Y)
+  Offset? _tapScreenPosition;
+  // ignore: unused_field
+  Offset? _tapImagePosition;
   Color _pickedColor = Colors.white;
   String _colorName = "";
   String _colorFamily = "";
   int _r = 0, _g = 0, _b = 0;
 
-  // Spot filter
-  final Set<Color> _spotColors = {};
+  Color? _currentSpotColor;
 
-  // Recolor filter
   Color _recolorTargetColor = Colors.red;
-  Offset? _recolorTapPosition; // Image coordinates
+  // ignore: unused_field
+  Offset? _recolorScreenPosition;
+  Offset? _recolorImagePosition;
+  img.Image? _cachedRecolorMask;
+  List<int>? _pixelsToRecolor;
+  List<int>? _originalReds;
+  List<int>? _originalGreens;
+  List<int>? _originalBlues;
 
-  // UI state
   final GlobalKey _imageKey = GlobalKey();
   bool _isProcessing = false;
   bool _isSaving = false;
 
-  // REDUCED tolerance for more precise color matching
   final double _colorTolerance = 8.0;
 
   @override
@@ -75,46 +187,9 @@ class _FilterPageState extends State<FilterPage> {
     }
   }
 
-  // ---------------- LAB COLOR DISTANCE (Delta E) ----------------
-  LabColor rgbToLab(Color color) {
-    double r = color.red / 255;
-    double g = color.green / 255;
-    double b = color.blue / 255;
+  LabColor rgbToLab(Color color) => _rgbToLab(color);
+  double deltaE(Color c1, Color c2) => _deltaE(c1, c2);
 
-    r = r > 0.04045 ? pow((r + 0.055) / 1.055, 2.4).toDouble() : r / 12.92;
-    g = g > 0.04045 ? pow((g + 0.055) / 1.055, 2.4).toDouble() : g / 12.92;
-    b = b > 0.04045 ? pow((b + 0.055) / 1.055, 2.4).toDouble() : b / 12.92;
-
-    double x = (0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / 0.95047;
-    double y = (0.2126729 * r + 0.7151522 * g + 0.0721750 * b) / 1.00000;
-    double z = (0.0193339 * r + 0.1191920 * g + 0.9503041 * b) / 1.08883;
-
-    double f(double t) => t > 0.008856
-        ? pow(t, 1.0 / 3.0).toDouble()
-        : (7.787 * t) + 16.0 / 116.0;
-
-    double fx = f(x);
-    double fy = f(y);
-    double fz = f(z);
-
-    double lVal = (116 * fy) - 16;
-    double aVal = 500 * (fx - fy);
-    double bVal = 200 * (fy - fz);
-
-    return LabColor(lVal, aVal, bVal);
-  }
-
-  double deltaE(Color c1, Color c2) {
-    final lab1 = rgbToLab(c1);
-    final lab2 = rgbToLab(c2);
-    return sqrt(
-      pow(lab1.l - lab2.l, 2) +
-          pow(lab1.a - lab2.a, 2) +
-          pow(lab1.b - lab2.b, 2),
-    );
-  }
-
-  // ---------------- WEIGHTED AVERAGE PIXELS ----------------
   Color _weightedAveragePixels(
     img.Image image,
     int x,
@@ -153,7 +228,6 @@ class _FilterPageState extends State<FilterPage> {
     );
   }
 
-  // ---------------- TAP COORDINATE MAPPING ----------------
   Offset _mapTapToImage(
     Size widgetSize,
     int imageWidth,
@@ -163,10 +237,7 @@ class _FilterPageState extends State<FilterPage> {
     final imageRatio = imageWidth / imageHeight;
     final widgetRatio = widgetSize.width / widgetSize.height;
 
-    double renderedWidth;
-    double renderedHeight;
-    double offsetX;
-    double offsetY;
+    double renderedWidth, renderedHeight, offsetX, offsetY;
 
     if (imageRatio > widgetRatio) {
       renderedWidth = widgetSize.width;
@@ -202,41 +273,7 @@ class _FilterPageState extends State<FilterPage> {
     return Offset(imageX, imageY);
   }
 
-  // Map image coordinates back to screen position for accurate marker placement
-  Offset _mapImageToScreen(
-    Size widgetSize,
-    int imageWidth,
-    int imageHeight,
-    Offset imagePos,
-  ) {
-    final imageRatio = imageWidth / imageHeight;
-    final widgetRatio = widgetSize.width / widgetSize.height;
-
-    double renderedWidth;
-    double renderedHeight;
-    double offsetX;
-    double offsetY;
-
-    if (imageRatio > widgetRatio) {
-      renderedWidth = widgetSize.width;
-      renderedHeight = widgetSize.width / imageRatio;
-      offsetX = 0;
-      offsetY = (widgetSize.height - renderedHeight) / 2;
-    } else {
-      renderedHeight = widgetSize.height;
-      renderedWidth = widgetSize.height * imageRatio;
-      offsetX = (widgetSize.width - renderedWidth) / 2;
-      offsetY = 0;
-    }
-
-    final screenX = (imagePos.dx / imageWidth * renderedWidth) + offsetX;
-    final screenY = (imagePos.dy / imageHeight * renderedHeight) + offsetY;
-
-    return Offset(screenX, screenY);
-  }
-
-  // ---------------- SPOT FILTER ----------------
-  img.Image _applySpotFilter(img.Image original, Set<Color> colorsToKeep) {
+  img.Image _applySpotFilter(img.Image original, Color colorToKeep) {
     final result = img.Image.from(original);
     for (int y = 0; y < result.height; y++) {
       for (int x = 0; x < result.width; x++) {
@@ -248,9 +285,7 @@ class _FilterPageState extends State<FilterPage> {
           pixel.b.toInt(),
         );
 
-        bool keep = colorsToKeep.any(
-          (c) => deltaE(c, currentColor) < _colorTolerance,
-        );
+        bool keep = deltaE(colorToKeep, currentColor) < _colorTolerance;
 
         if (!keep) {
           final gray = (pixel.r * 0.299 + pixel.g * 0.587 + pixel.b * 0.114)
@@ -262,24 +297,83 @@ class _FilterPageState extends State<FilterPage> {
     return result;
   }
 
-  // ---------------- IMPROVED RECOLOR FILTER ----------------
-  Future<void> _applyRecolorFilter(Color targetColor) async {
-    if (_baseImageForCurrentMode == null || _recolorTapPosition == null) return;
+  Future<void> _buildRecolorMask(Color sourceColor) async {
+    if (_baseImageForCurrentMode == null) return;
+
+    final original = _baseImageForCurrentMode!;
+
+    final data = RecolorData(
+      imageBytes: Uint8List.fromList(original.getBytes()),
+      width: original.width,
+      height: original.height,
+      sourceColor: sourceColor,
+      tolerance: _colorTolerance,
+    );
+
+    final result = await compute(_buildMaskInIsolate, data);
+
+    setState(() {
+      _pixelsToRecolor = result.pixelIndices;
+      _originalReds = result.originalReds;
+      _originalGreens = result.originalGreens;
+      _originalBlues = result.originalBlues;
+      _cachedRecolorMask = original.clone();
+    });
+  }
+
+  void _applyFastRecolor(double targetHue) {
+    if (_cachedRecolorMask == null || _pixelsToRecolor == null) return;
+
+    final result = _cachedRecolorMask!.clone();
+    final sourceHSV = HSVColor.fromColor(_pickedColor);
+    final hueDiff = targetHue - sourceHSV.hue;
+
+    for (int i = 0; i < _pixelsToRecolor!.length; i++) {
+      final index = _pixelsToRecolor![i];
+      final x = index % result.width;
+      final y = index ~/ result.width;
+
+      final currentColor = Color.fromARGB(
+        255,
+        _originalReds![i],
+        _originalGreens![i],
+        _originalBlues![i],
+      );
+      final hsv = HSVColor.fromColor(currentColor);
+      final newHue = (hsv.hue + hueDiff) % 360;
+
+      final newColor = HSVColor.fromAHSV(
+        1.0,
+        newHue,
+        hsv.saturation,
+        hsv.value,
+      ).toColor();
+
+      result.setPixelRgba(
+        x,
+        y,
+        newColor.red,
+        newColor.green,
+        newColor.blue,
+        255,
+      );
+    }
+
+    setState(() {
+      _displayImage = result;
+    });
+  }
+
+  Future<void> _initializeRecolor() async {
+    if (_baseImageForCurrentMode == null || _recolorImagePosition == null)
+      return;
 
     setState(() => _isProcessing = true);
-    try {
-      final result = await _simulateRecolor(
-        _baseImageForCurrentMode!,
-        targetColor,
-        _pickedColor,
-      );
 
-      setState(() {
-        _displayImage = result;
-        _isProcessing = false;
-      });
+    try {
+      await _buildRecolorMask(_pickedColor);
+      _applyFastRecolor(HSVColor.fromColor(_recolorTargetColor).hue);
     } catch (e) {
-      setState(() => _isProcessing = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -288,88 +382,41 @@ class _FilterPageState extends State<FilterPage> {
           ),
         );
       }
+    } finally {
+      setState(() => _isProcessing = false);
     }
   }
 
-  Future<img.Image> _simulateRecolor(
-    img.Image original,
-    Color targetColor,
-    Color sourceColor,
-  ) async {
-    final result = img.Image.from(original);
-    final targetHSV = HSVColor.fromColor(targetColor);
-    final sourceHSV = HSVColor.fromColor(sourceColor);
-
-    // Calculate hue shift
-    final hueDiff = targetHSV.hue - sourceHSV.hue;
-
-    for (int y = 0; y < result.height; y++) {
-      for (int x = 0; x < result.width; x++) {
-        final pixel = result.getPixelSafe(x, y);
-        final currentColor = Color.fromARGB(
-          255,
-          pixel.r.toInt(),
-          pixel.g.toInt(),
-          pixel.b.toInt(),
-        );
-
-        // Only recolor pixels that match the source color closely
-        if (deltaE(currentColor, sourceColor) < _colorTolerance) {
-          final hsv = HSVColor.fromColor(currentColor);
-
-          // Apply hue shift while preserving the original saturation and value
-          final newHue = (hsv.hue + hueDiff) % 360;
-
-          final newColor = HSVColor.fromAHSV(
-            1.0,
-            newHue,
-            hsv.saturation,
-            hsv.value,
-          ).toColor();
-
-          result.setPixelRgba(
-            x,
-            y,
-            newColor.red,
-            newColor.green,
-            newColor.blue,
-            255,
-          );
-        }
-      }
-    }
-    return result;
-  }
-
-  // ---------------- TAP HANDLER (FIXED) ----------------
-  void _handleTap(TapDownDetails details) {
+  void _updateColorAtPosition(Offset localPosition) {
     if (_originalImage == null) return;
 
     final renderBox =
         _imageKey.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox == null) return;
 
-    final widgetSize = renderBox.size;
+    final globalTapPos = renderBox.localToGlobal(localPosition);
+    final stackBox = context.findRenderObject() as RenderBox?;
+    final stackLocalPos =
+        stackBox?.globalToLocal(globalTapPos) ?? localPosition;
 
-    final mapped = _mapTapToImage(
+    final widgetSize = renderBox.size;
+    final imagePos = _mapTapToImage(
       widgetSize,
       _originalImage!.width,
       _originalImage!.height,
-      details.localPosition,
+      localPosition,
     );
 
-    if (mapped.dx == -1 && mapped.dy == -1) {
-      return;
-    }
+    if (imagePos.dx == -1 && imagePos.dy == -1) return;
 
-    final int pixelX = mapped.dx.round().clamp(0, _originalImage!.width - 1);
-    final int pixelY = mapped.dy.round().clamp(0, _originalImage!.height - 1);
+    final int pixelX = imagePos.dx.round().clamp(0, _originalImage!.width - 1);
+    final int pixelY = imagePos.dy.round().clamp(0, _originalImage!.height - 1);
 
     final pickedColor = _weightedAveragePixels(_originalImage!, pixelX, pixelY);
 
     setState(() {
-      // Store IMAGE coordinates (pixel X, Y) instead of screen coordinates
-      _tapPosition = Offset(pixelX.toDouble(), pixelY.toDouble());
+      _tapScreenPosition = stackLocalPos;
+      _tapImagePosition = Offset(pixelX.toDouble(), pixelY.toDouble());
       _pickedColor = pickedColor;
       _colorName = ColorMatcher.getColorFamily(
         _pickedColor.red,
@@ -381,15 +428,9 @@ class _FilterPageState extends State<FilterPage> {
       _b = _pickedColor.blue;
       _colorFamily = ColorMatcher.getColorFamily(_r, _g, _b);
 
-      if (_currentFilterMode == FilterMode.spot) {
-        _spotColors.add(pickedColor);
-        _displayImage = _applySpotFilter(
-          _baseImageForCurrentMode!,
-          _spotColors,
-        );
-      } else if (_currentFilterMode == FilterMode.recolor) {
-        // Store image coordinates for recolor too
-        _recolorTapPosition = Offset(pixelX.toDouble(), pixelY.toDouble());
+      if (_currentFilterMode == FilterMode.recolor) {
+        _recolorScreenPosition = stackLocalPos;
+        _recolorImagePosition = Offset(pixelX.toDouble(), pixelY.toDouble());
         final hsv = HSVColor.fromColor(pickedColor);
         _recolorTargetColor = HSVColor.fromAHSV(
           1.0,
@@ -397,12 +438,45 @@ class _FilterPageState extends State<FilterPage> {
           1.0,
           1.0,
         ).toColor();
-        _applyRecolorFilter(_recolorTargetColor);
+        _initializeRecolor();
       }
     });
   }
 
-  // ---------------- UI & SAVE HANDLERS ----------------
+  void _handlePanStart(DragStartDetails details) {
+    _updateColorAtPosition(details.localPosition);
+  }
+
+  void _handlePanUpdate(DragUpdateDetails details) {
+    _updateColorAtPosition(details.localPosition);
+  }
+
+  void _handlePanEnd(DragEndDetails details) {
+    if (_currentFilterMode == FilterMode.spot && _pickedColor != Colors.white) {
+      setState(() {
+        _currentSpotColor = _pickedColor;
+        _displayImage = _applySpotFilter(
+          _baseImageForCurrentMode!,
+          _currentSpotColor!,
+        );
+      });
+    }
+  }
+
+  void _handleTap(TapDownDetails details) {
+    _updateColorAtPosition(details.localPosition);
+
+    if (_currentFilterMode == FilterMode.spot) {
+      setState(() {
+        _currentSpotColor = _pickedColor;
+        _displayImage = _applySpotFilter(
+          _baseImageForCurrentMode!,
+          _currentSpotColor!,
+        );
+      });
+    }
+  }
+
   void _switchFilterMode(FilterMode mode) {
     setState(() {
       _currentFilterMode = mode;
@@ -410,10 +484,17 @@ class _FilterPageState extends State<FilterPage> {
         _displayImage = _originalImage!.clone();
         _baseImageForCurrentMode = _originalImage!.clone();
       }
-      _spotColors.clear();
-      _recolorTapPosition = null;
-      _tapPosition = null;
+      _currentSpotColor = null;
+      _recolorScreenPosition = null;
+      _recolorImagePosition = null;
+      _tapScreenPosition = null;
+      _tapImagePosition = null;
       _colorName = "";
+      _pixelsToRecolor = null;
+      _cachedRecolorMask = null;
+      _originalReds = null;
+      _originalGreens = null;
+      _originalBlues = null;
     });
   }
 
@@ -498,7 +579,7 @@ class _FilterPageState extends State<FilterPage> {
 
   Widget _buildColorSlider() {
     String sliderTitle = _colorName.isEmpty
-        ? 'Tap a color to begin recoloring'
+        ? 'Tap or glide over a color to begin recoloring'
         : 'Recoloring: $_colorName';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -527,15 +608,15 @@ class _FilterPageState extends State<FilterPage> {
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: [
-                          Color(0xFFFF0000), // Red
-                          Color(0xFFFF7F00), // Orange
-                          Color(0xFFFFFF00), // Yellow
-                          Color(0xFF00FF00), // Green
-                          Color(0xFF00FFFF), // Cyan
-                          Color(0xFF0000FF), // Blue
-                          Color(0xFF8B00FF), // Purple
-                          Color(0xFFFF00FF), // Magenta
-                          Color(0xFFFF0000), // Red (loop)
+                          Color(0xFFFF0000),
+                          Color(0xFFFF7F00),
+                          Color(0xFFFFFF00),
+                          Color(0xFF00FF00),
+                          Color(0xFF00FFFF),
+                          Color(0xFF0000FF),
+                          Color(0xFF8B00FF),
+                          Color(0xFFFF00FF),
+                          Color(0xFFFF0000),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(20),
@@ -566,10 +647,8 @@ class _FilterPageState extends State<FilterPage> {
                               1.0,
                             ).toColor();
                           });
-                        },
-                        onChangeEnd: (value) {
-                          if (_colorName.isNotEmpty) {
-                            _applyRecolorFilter(_recolorTargetColor);
+                          if (_pixelsToRecolor != null) {
+                            _applyFastRecolor(value);
                           }
                         },
                       ),
@@ -603,11 +682,13 @@ class _FilterPageState extends State<FilterPage> {
           : Stack(
               fit: StackFit.expand,
               children: [
-                // Image display
                 Center(
                   child: GestureDetector(
                     key: _imageKey,
                     onTapDown: _handleTap,
+                    onPanStart: _handlePanStart,
+                    onPanUpdate: _handlePanUpdate,
+                    onPanEnd: _handlePanEnd,
                     child: Image.memory(
                       img.encodePng(_displayImage!),
                       fit: BoxFit.contain,
@@ -615,7 +696,6 @@ class _FilterPageState extends State<FilterPage> {
                     ),
                   ),
                 ),
-                // Processing overlay
                 if (_isProcessing)
                   Container(
                     color: Colors.black.withOpacity(0.5),
@@ -633,7 +713,6 @@ class _FilterPageState extends State<FilterPage> {
                       ),
                     ),
                   ),
-                // Top bar
                 Positioned(
                   top: 0,
                   left: 0,
@@ -695,7 +774,6 @@ class _FilterPageState extends State<FilterPage> {
                     ),
                   ),
                 ),
-                // Color info card
                 if (_colorName.isNotEmpty &&
                     _currentFilterMode != FilterMode.none)
                   Positioned(
@@ -765,46 +843,28 @@ class _FilterPageState extends State<FilterPage> {
                       ),
                     ),
                   ),
-                // Tap marker (DYNAMICALLY POSITIONED - FIXED)
-                if (_tapPosition != null && _originalImage != null)
-                  Builder(
-                    builder: (context) {
-                      final renderBox =
-                          _imageKey.currentContext?.findRenderObject()
-                              as RenderBox?;
-                      if (renderBox == null) return const SizedBox.shrink();
-
-                      final widgetSize = renderBox.size;
-                      // Convert stored image coordinates to current screen position
-                      final screenPos = _mapImageToScreen(
-                        widgetSize,
-                        _originalImage!.width,
-                        _originalImage!.height,
-                        _tapPosition!,
-                      );
-
-                      return Positioned(
-                        left: screenPos.dx - 15,
-                        top: screenPos.dy - 15,
-                        child: Container(
-                          width: 30,
-                          height: 30,
-                          decoration: BoxDecoration(
-                            color: _pickedColor,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 3),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.3),
-                                blurRadius: 4,
-                              ),
-                            ],
+                if (_tapScreenPosition != null)
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 50),
+                    left: _tapScreenPosition!.dx - 15,
+                    top: _tapScreenPosition!.dy - 15,
+                    child: Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: _pickedColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 3),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
                           ),
-                        ),
-                      );
-                    },
+                        ],
+                      ),
+                    ),
                   ),
-                // Bottom controls
                 Positioned(
                   bottom: 0,
                   left: 0,
@@ -836,8 +896,8 @@ class _FilterPageState extends State<FilterPage> {
                             padding: const EdgeInsets.symmetric(horizontal: 24),
                             child: Text(
                               _currentFilterMode == FilterMode.spot
-                                  ? 'Tap colors to keep (rest becomes grayscale)'
-                                  : 'Tap a color, then slide to change its hue',
+                                  ? 'Tap or glide over a color to spotlight it (rest becomes grayscale)'
+                                  : 'Tap or glide over a color, then slide to change its hue',
                               style: TextStyle(
                                 color: Colors.white.withOpacity(0.8),
                                 fontSize: 13,

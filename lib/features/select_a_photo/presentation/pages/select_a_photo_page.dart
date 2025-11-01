@@ -19,7 +19,6 @@ Future<void> openARLiveView(BuildContext context) async {
   final mode = prefs.getString('liveARMode') ?? 'Assistive';
   final colorBlindType = prefs.getString('colorBlindnessType') ?? 'Normal';
 
-  // Determine assistiveMode and simulationType based on settings
   final bool assistiveMode = mode == 'Assistive';
   final String? simulationType = mode == 'Simulation'
       ? colorBlindType.toLowerCase()
@@ -159,9 +158,8 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
     return Offset(x, y);
   }
 
-  void _handleTap(TapDownDetails details) {
+  void _updateColorAtPosition(Offset position) {
     if (_decodedImage == null) return;
-    _tapPosition = details.localPosition;
 
     final renderBox = _imageKey.currentContext!.findRenderObject() as RenderBox;
     final widgetSize = renderBox.size;
@@ -170,7 +168,7 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
       widgetSize,
       _decodedImage!.width,
       _decodedImage!.height,
-      _tapPosition!,
+      position,
     );
 
     _pickedColor = _weightedAveragePixels(
@@ -185,7 +183,24 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
 
     _colorFamily = ColorMatcher.getColorFamily(_r, _g, _b);
 
-    setState(() {});
+    setState(() {
+      _tapPosition = position;
+    });
+  }
+
+  void _handlePanStart(DragStartDetails details) {
+    if (_decodedImage == null) return;
+    _updateColorAtPosition(details.localPosition);
+  }
+
+  void _handlePanUpdate(DragUpdateDetails details) {
+    if (_decodedImage == null) return;
+    _updateColorAtPosition(details.localPosition);
+  }
+
+  void _handleTap(TapDownDetails details) {
+    if (_decodedImage == null) return;
+    _updateColorAtPosition(details.localPosition);
   }
 
   void _resetToGallery() {
@@ -257,6 +272,8 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
         children: [
           GestureDetector(
             onTapDown: _handleTap,
+            onPanStart: _handlePanStart,
+            onPanUpdate: _handlePanUpdate,
             child: _selectedImage != null
                 ? Image.file(
                     File(_selectedImage!.path),
@@ -371,9 +388,10 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
               ),
             ),
 
-          // Tap marker
+          // Tap marker with smooth animation
           if (_tapPosition != null && _selectedImage != null)
-            Positioned(
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 50),
               left: _tapPosition!.dx - 15,
               top: _tapPosition!.dy - 15,
               child: Container(
@@ -383,6 +401,13 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
                   color: _pickedColor,
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 3),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -444,7 +469,7 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
                           onPressed: _resetToGallery,
                           icon: const Icon(Icons.refresh, size: 18),
                           label: const Text(
-                            'RESELECT',
+                            'UPLOAD',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,

@@ -49,14 +49,15 @@ class _SettingsPageState extends State<SettingsPage> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 30),
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const SizedBox(height: 60),
+                const SizedBox(height: 40),
                 Image.asset(
                   'assets/icon/truehue_logo.png',
-                  width: 150,
-                  height: 150,
+                  width: 120,
+                  height: 120,
                 ),
                 const SizedBox(height: 20),
                 Text(
@@ -64,30 +65,42 @@ class _SettingsPageState extends State<SettingsPage> {
                   style: theme.textTheme.headlineSmall?.copyWith(
                     color: theme.primaryColor,
                     fontWeight: FontWeight.bold,
+                    fontSize: 32,
                   ),
                 ),
-                const SizedBox(height: 40),
+                const SizedBox(height: 36),
 
+                // --- Current Type ---
                 Text(
                   'Current type of colorblindness:',
+                  textAlign: TextAlign.center,
                   style: theme.textTheme.bodyLarge?.copyWith(
                     color: theme.primaryColor.withOpacity(0.8),
+                    fontWeight: FontWeight.w500,
+                    fontSize: 18,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   _selectedType,
+                  textAlign: TextAlign.center,
                   style: theme.textTheme.titleMedium?.copyWith(
                     color: theme.primaryColor,
                     fontStyle: FontStyle.italic,
+                    fontSize: 20,
                   ),
                 ),
 
                 const SizedBox(height: 30),
+
+                // --- Mode Section ---
                 Text(
                   'Mode:',
+                  textAlign: TextAlign.center,
                   style: theme.textTheme.bodyLarge?.copyWith(
                     color: theme.primaryColor.withOpacity(0.8),
+                    fontWeight: FontWeight.w500,
+                    fontSize: 18,
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -96,21 +109,33 @@ class _SettingsPageState extends State<SettingsPage> {
                   'Help me see colors better',
                   theme,
                 ),
-                const SizedBox(height: 10),
                 _buildModeRadio(
                   'Simulation',
                   'Show how I see to others',
                   theme,
                 ),
 
-                const SizedBox(height: 40),
+                const SizedBox(height: 32),
 
-                // Dropdown for colorblindness type
+                // --- Dropdown Section ---
+                Text(
+                  'Select colorblindness type:',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: theme.primaryColor.withOpacity(0.8),
+                    fontWeight: FontWeight.w500,
+                    fontSize: 18,
+                  ),
+                ),
+                const SizedBox(height: 10),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
                   decoration: BoxDecoration(
-                    color: theme.primaryColor.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(10),
+                    color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: theme.primaryColor.withOpacity(0.3),
+                    ),
                   ),
                   child: DropdownButton<String>(
                     value: _selectedType,
@@ -120,9 +145,11 @@ class _SettingsPageState extends State<SettingsPage> {
                     icon: Icon(
                       Icons.arrow_drop_down,
                       color: theme.primaryColor,
+                      size: 28,
                     ),
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.primaryColor,
+                      fontSize: 20,
                     ),
                     onChanged: (String? newValue) {
                       if (newValue != null) {
@@ -141,7 +168,10 @@ class _SettingsPageState extends State<SettingsPage> {
                         .map(
                           (value) => DropdownMenuItem<String>(
                             value: value,
-                            child: Text(value),
+                            child: Text(
+                              value,
+                              style: const TextStyle(fontSize: 20),
+                            ),
                           ),
                         )
                         .toList(),
@@ -150,16 +180,19 @@ class _SettingsPageState extends State<SettingsPage> {
 
                 const SizedBox(height: 50),
 
-                // Farnsworth D-15 Test section (smaller, like the 'current type' text)
+                // --- Farnsworth Test Section ---
                 Text(
                   'Farnsworth D-15 Test:',
+                  textAlign: TextAlign.center,
                   style: theme.textTheme.bodyLarge?.copyWith(
                     color: theme.primaryColor.withOpacity(0.8),
+                    fontWeight: FontWeight.w500,
+                    fontSize: 18,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 SizedBox(
-                  width: 180,
+                  width: 200,
                   child: ElevatedButton(
                     onPressed: () {
                       Navigator.pushReplacement(
@@ -172,7 +205,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: theme.primaryColor,
                       foregroundColor: theme.scaffoldBackgroundColor,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -180,7 +213,10 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     child: const Text(
                       'Take test again',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20,
+                      ),
                     ),
                   ),
                 ),
@@ -195,36 +231,50 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildModeRadio(String mode, String description, ThemeData theme) {
-    return ListTile(
-      leading: Radio<String>(
-        value: mode,
-        groupValue: _selectedMode,
-        activeColor: theme.primaryColor,
-        onChanged: (value) {
-          if (value != null) {
-            setState(() => _selectedMode = value);
-            _savePreferences();
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Settings saved!'),
-                duration: Duration(seconds: 1),
-              ),
-            );
-          }
-        },
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+      decoration: BoxDecoration(
+        color: theme.primaryColor.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(10),
       ),
-      title: Text(
-        mode,
-        style: theme.textTheme.titleMedium?.copyWith(
-          color: theme.primaryColor,
-          fontWeight: FontWeight.w600,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        horizontalTitleGap: 4,
+        leading: Transform.scale(
+          scale: 0.9, // slightly smaller radio button for balance
+          child: Radio<String>(
+            value: mode,
+            groupValue: _selectedMode,
+            activeColor: theme.primaryColor,
+            onChanged: (value) {
+              if (value != null) {
+                setState(() => _selectedMode = value);
+                _savePreferences();
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Settings saved!'),
+                    duration: Duration(seconds: 1),
+                  ),
+                );
+              }
+            },
+          ),
         ),
-      ),
-      subtitle: Text(
-        description,
-        style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.primaryColor.withOpacity(0.7),
+        title: Text(
+          mode,
+          style: theme.textTheme.titleMedium?.copyWith(
+            color: theme.primaryColor,
+            fontWeight: FontWeight.w600,
+            fontSize: 20,
+          ),
+        ),
+        subtitle: Text(
+          description,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.primaryColor.withOpacity(0.7),
+            fontSize: 15, // slightly smaller for secondary text
+          ),
         ),
       ),
     );

@@ -6,7 +6,7 @@ import 'dart:math';
 class ColorMatcher {
   // MASSIVE comprehensive color palette - 100+ colors per family
   static const Map<String, List<int>> _colorPalette = {
-// ==================== REDS (55) ====================
+    // ==================== REDS (55) ====================
     'Dark Red': [139, 0, 0],
     'Blood Red': [102, 0, 0],
     'Crimson': [220, 20, 60],
@@ -280,7 +280,7 @@ class ColorMatcher {
     'Acacia': [227, 208, 87],
     'Topaz': [255, 200, 124],
 
-// ==================== GREENS (87) ====================
+    // ==================== GREENS (87) ====================
     'Dark Green': [0, 100, 0],
     'Deep Green': [5, 102, 8],
     'Forest Green': [34, 139, 34],
@@ -375,7 +375,7 @@ class ColorMatcher {
     'Green Tea': [214, 232, 167],
     'Matcha': [136, 176, 75],
 
-// ==================== BLUES (91) ====================
+    // ==================== BLUES (91) ====================
     'Navy': [0, 0, 128],
     'Dark Navy': [0, 0, 80],
     'Midnight Blue': [25, 25, 112],
@@ -460,7 +460,7 @@ class ColorMatcher {
     'Adriatic': [44, 150, 199],
     'Baltic': [51, 113, 151],
 
-// ==================== PURPLES (92) ====================
+    // ==================== PURPLES (92) ====================
     'Dark Purple': [48, 25, 52],
     'Deep Purple': [58, 12, 163],
     'Purple': [128, 0, 128],
@@ -553,7 +553,7 @@ class ColorMatcher {
     'Sorcerer': [85, 37, 130],
     'Mystic Purple': [167, 107, 207],
 
-// ==================== BROWNS (82) ====================
+    // ==================== BROWNS (82) ====================
     'Brown': [165, 42, 42],
     'Dark Brown': [101, 67, 33],
     'Deep Brown': [74, 44, 42],
@@ -639,7 +639,7 @@ class ColorMatcher {
     'Autumn Brown': [205, 133, 63],
     'Harvest Brown': [255, 155, 66],
 
-// ==================== GRAYS ====================
+    // ==================== GRAYS ====================
     'Light Gray': [211, 211, 211],
     'Pale Gray': [220, 220, 220],
     'Gainsboro': [220, 220, 220],
@@ -672,7 +672,7 @@ class ColorMatcher {
     'Dim Gray': [105, 105, 105],
     'Battleship Gray': [132, 132, 130],
 
-// ==================== WHITES (18) ====================
+    // ==================== WHITES (18) ====================
     'White': [255, 255, 255],
     'Bright White': [254, 254, 254],
     'Snow': [255, 250, 250],
@@ -692,9 +692,7 @@ class ColorMatcher {
     'Navajo White': [255, 222, 173],
     'Platinum': [229, 228, 226],
 
-
-
-  // ==================== BLACKS (23) ====================
+    // ==================== BLACKS (23) ====================
     'Black': [0, 0, 0],
     'Jet Black': [10, 10, 10],
     'Tar': [13, 13, 13],
@@ -718,8 +716,42 @@ class ColorMatcher {
     'Licorice': [26, 17, 16],
     'Ink': [28, 28, 28],
     'Asphalt': [19, 19, 19],
-
   };
+
+  // static String classifyRedPinkPurple(int r, int g, int b) {
+  //   double rf = r / 255.0;
+  //   double gf = g / 255.0;
+  //   double bf = b / 255.0;
+
+  //   double maxVal = [rf, gf, bf].reduce((a, b) => a > b ? a : b);
+  //   double minVal = [rf, gf, bf].reduce((a, b) => a < b ? a : b);
+  //   double lightness = (maxVal + minVal) / 2.0;
+
+  //   double redBlueRatio = r / (b + 1);
+
+  //   if (lightness > 0.55) return "Pink";
+  //   if (redBlueRatio > 1.05 && r > g * 0.8) return "Pink";
+  //   if (b > r * 0.6) return "Purple";
+  //   return "Red";
+  // }
+
+  static void addColor(String name, List<int> rgb) {
+    _colorPalette[name] = rgb;
+  }
+
+  /// Remove a color
+  static void removeColor(String name) {
+    _colorPalette.remove(name);
+  }
+
+  /// Total colors
+  static int get colorCount => _colorPalette.length;
+
+  /// All color names
+  static List<String> get allColorNames => _colorPalette.keys.toList();
+
+  /// Get RGB for a specific color
+  static List<int>? getColorRGB(String colorName) => _colorPalette[colorName];
 
   /// Calculate Euclidean distance between two RGB colors
   static double _colorDistance(int r1, int g1, int b1, int r2, int g2, int b2) {
@@ -727,36 +759,28 @@ class ColorMatcher {
   }
 
   /// Get the closest color name using K-Nearest Neighbors algorithm
-  ///
-  /// [r], [g], [b] - RGB values of the color to match
-  /// [k] - Number of nearest neighbors to consider (default: 5)
-  ///
-  /// Returns the most common color name among the k nearest neighbors
   static String getColorName(int r, int g, int b, {int k = 5}) {
-    // Calculate distances to all colors
-    final distances = <MapEntry<String, double>>[];
+    if (_colorPalette.isEmpty) return "Unknown";
 
+    final distances = <MapEntry<String, double>>[];
     _colorPalette.forEach((name, rgb) {
       final distance = _colorDistance(r, g, b, rgb[0], rgb[1], rgb[2]);
       distances.add(MapEntry(name, distance));
     });
 
-    // Sort by distance (closest first)
+    // Sort and take top k
     distances.sort((a, b) => a.value.compareTo(b.value));
-
-    // Take k nearest neighbors
     final kNearest = distances.take(k);
 
-    // Count occurrences of each color name
+    // Count occurrences
     final colorCounts = <String, int>{};
     for (final entry in kNearest) {
       colorCounts[entry.key] = (colorCounts[entry.key] ?? 0) + 1;
     }
 
-    // Return the most common color name
+    // Return most common
     String mostCommon = kNearest.first.key;
     int maxCount = 0;
-
     colorCounts.forEach((name, count) {
       if (count > maxCount) {
         maxCount = count;
@@ -767,88 +791,98 @@ class ColorMatcher {
     return mostCommon;
   }
 
-  /// Get a simplified color family name with SEPARATED Gray, Black, and White
-  /// Returns: Red, Pink, Orange, Yellow, Green, Blue, Purple, Brown, Gray, White, Black
+  /// Get a simplified color family name with separated Gray, Black, and White
   static String getColorFamily(int r, int g, int b) {
-    final max = [r, g, b].reduce((a, b) => a > b ? a : b);
-    final min = [r, g, b].reduce((a, b) => a < b ? a : b);
-    final diff = max - min;
+    // Normalize to 0–1
+    double rf = r / 255.0;
+    double gf = g / 255.0;
+    double bf = b / 255.0;
 
-    // Lightness (0-1 scale)
-    final lightness = (max + min) / 2 / 255;
-
-    // Saturation (0-1 scale)
-    final saturation = diff == 0
+    double maxVal = [rf, gf, bf].reduce((a, b) => a > b ? a : b);
+    double minVal = [rf, gf, bf].reduce((a, b) => a < b ? a : b);
+    double lightness = (maxVal + minVal) / 2.0;
+    double diff = maxVal - minVal;
+    double saturation = diff == 0
         ? 0.0
-        : diff / (255 - (2 * lightness * 255 - 255).abs());
+        : diff / (1 - (2 * lightness - 1).abs());
 
-    // SEPARATE BLACK, WHITE, AND GRAY with adjusted boundaries for brightness boost
-
-    // BLACK: Very dark colors (lightness < 0.25) - increased threshold for boosted values
-    if (lightness < 0.25 && saturation < 0.15) {
-      return "Black";
-    }
-
-    // WHITE: Bright colors with low saturation (lightness > 0.60)
-    if (saturation < 0.12 && lightness > 0.60) {
-      return "White";
-    }
-
-    // GRAY: Low saturation mid-range colors (between black and white)
-    if (saturation < 0.15 && lightness >= 0.25 && lightness <= 0.60) {
+    // --- Achromatic colors ---
+    if (lightness < 0.25 && saturation < 0.15) return "Black";
+    if (saturation < 0.12 && lightness > 0.6) return "White";
+    if (saturation < 0.15 && lightness >= 0.25 && lightness <= 0.6) {
       return "Gray";
     }
 
-    // Calculate Hue for chromatic colors
+    // --- Hue calculation ---
     double hue = 0;
     if (diff != 0) {
-      if (max == r) {
-        hue = 60 * (((g - b) / diff) % 6);
-      } else if (max == g) {
-        hue = 60 * (((b - r) / diff) + 2);
+      if (maxVal == rf) {
+        hue = 60 * (((gf - bf) / diff) % 6);
+      } else if (maxVal == gf) {
+        hue = 60 * (((bf - rf) / diff) + 2);
       } else {
-        hue = 60 * (((r - g) / diff) + 4);
+        hue = 60 * (((rf - gf) / diff) + 4);
       }
     }
     if (hue < 0) hue += 360;
 
-    // Check for Browns (low saturation warm colors with specific RGB characteristics)
-    if (saturation < 0.5 && lightness > 0.2 && lightness < 0.7) {
-      // Brown detection: R > G > B and warm tones
-      if (r > g && g > b && r > 100) {
-        return "Brown";
-      }
+    // --- Brown detection ---
+    if (saturation < 0.55 &&
+        lightness > 0.2 &&
+        lightness < 0.65 &&
+        r > g &&
+        g > b &&
+        r > 90) {
+      return "Brown";
     }
 
-    // Determine color family based on hue with adjusted boundaries
-    if (hue >= 345 || hue < 10) return "Red";
-    if (hue < 30) {
-      // Red-Pink boundary: check lightness and saturation
-      if (lightness > 0.6 || saturation < 0.4) return "Pink";
+    // --- Red, Pink, Orange, Purple detection ---
+    if ((hue >= 345 || hue < 40) || (hue >= 290 && hue < 345)) {
+      return classifyRedPinkOrangePurple(r, g, b, hue, lightness, saturation);
+    }
+
+    // --- Other hue-based families ---
+    if (hue >= 40 && hue < 70) return "Yellow";
+    if (hue >= 70 && hue < 165) return "Green";
+    if (hue >= 165 && hue < 250) return "Blue";
+    if (hue >= 250 && hue < 290) return "Purple";
+
+    return "Unknown"; // fallback
+  }
+
+  /// Helper to distinguish Red, Pink, Orange, and Purple correctly
+  static String classifyRedPinkOrangePurple(
+    int r,
+    int g,
+    int b,
+    double hue,
+    double lightness,
+    double saturation,
+  ) {
+    // --- True Red zone (345°–15°) ---
+    if (hue >= 345 || hue < 15) {
+      if (lightness < 0.45) return "Red";
+      if (lightness >= 0.45 && b > g && b > (r * 0.6)) return "Pink";
+      if (lightness > 0.55 && saturation < 0.9) return "Pink";
       return "Red";
     }
-    if (hue < 45) return "Orange";
-    if (hue < 70) return "Yellow";
-    if (hue < 165) return "Green";
-    if (hue < 250) return "Blue";
-    if (hue < 290) return "Purple";
-    if (hue < 345) {
-      // Purple-Pink-Red boundary
-      if (lightness > 0.65) return "Pink";
-      if (r > b * 1.2) return "Pink";
-      return "Purple";
+
+    // --- Coral / Orange-red zone (15°–40°) ---
+    if (hue >= 15 && hue < 40) {
+      // Brighter and warm → Orange or Coral
+      if (lightness > 0.35 && g > b && saturation > 0.4) return "Orange";
+      // Slightly darker reds here are Red-Orange
+      return "Red";
     }
 
+    // --- Purple / Magenta zone (290°–345°) ---
+    if (hue >= 290 && hue < 345) {
+      if (lightness > 0.6 && r > b * 1.1) return "Pink";
+      if (b > r && lightness < 0.55) return "Purple";
+      return "Magenta";
+    }
+
+    // fallback
     return "Red";
   }
-
-  static List<int>? getColorRGB(String colorName) {
-    return _colorPalette[colorName];
-  }
-
-  /// Get the total number of colors in the database
-  static int get colorCount => _colorPalette.length;
-
-  /// Get all available color names
-  static List<String> get allColorNames => _colorPalette.keys.toList();
 }

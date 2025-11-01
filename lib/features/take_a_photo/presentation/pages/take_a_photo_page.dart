@@ -19,7 +19,6 @@ Future<void> openARLiveView(BuildContext context) async {
   final mode = prefs.getString('liveARMode') ?? 'Assistive';
   final colorBlindType = prefs.getString('colorBlindnessType') ?? 'Normal';
 
-  // Determine assistiveMode and simulationType based on settings
   final bool assistiveMode = mode == 'Assistive';
   final String? simulationType = mode == 'Simulation'
       ? colorBlindType.toLowerCase()
@@ -103,7 +102,6 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
     super.dispose();
   }
 
-  // Weighted average color
   Color _weightedAveragePixels(
     img.Image image,
     int x,
@@ -197,9 +195,8 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
     }
   }
 
-  void _handleTap(TapDownDetails details) {
+  void _updateColorAtPosition(Offset position) {
     if (_decodedImage == null) return;
-    _tapPosition = details.localPosition;
 
     final renderBox = _imageKey.currentContext!.findRenderObject() as RenderBox;
     final widgetSize = renderBox.size;
@@ -208,7 +205,7 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
       widgetSize,
       _decodedImage!.width,
       _decodedImage!.height,
-      _tapPosition!,
+      position,
     );
 
     _pickedColor = _weightedAveragePixels(
@@ -223,7 +220,24 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
 
     _colorFamily = ColorMatcher.getColorFamily(_r, _g, _b);
 
-    setState(() {});
+    setState(() {
+      _tapPosition = position;
+    });
+  }
+
+  void _handlePanStart(DragStartDetails details) {
+    if (_decodedImage == null) return;
+    _updateColorAtPosition(details.localPosition);
+  }
+
+  void _handlePanUpdate(DragUpdateDetails details) {
+    if (_decodedImage == null) return;
+    _updateColorAtPosition(details.localPosition);
+  }
+
+  void _handleTap(TapDownDetails details) {
+    if (_decodedImage == null) return;
+    _updateColorAtPosition(details.localPosition);
   }
 
   Future<void> _saveImage() async {
@@ -277,6 +291,8 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
             children: [
               GestureDetector(
                 onTapDown: _handleTap,
+                onPanStart: _handlePanStart,
+                onPanUpdate: _handlePanUpdate,
                 child: _capturedImage == null
                     ? CameraPreview(_controller)
                     : Image.file(
@@ -330,7 +346,7 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
                 ),
               ),
 
-              // Color card (only color family + RGB)
+              // Color card
               if (_capturedImage != null && _colorFamily.isNotEmpty)
                 Positioned(
                   top: MediaQuery.of(context).padding.top + 70,
@@ -392,9 +408,10 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
                   ),
                 ),
 
-              // Tap marker
+              // Tap marker with smooth animation
               if (_tapPosition != null && _capturedImage != null)
-                Positioned(
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 50),
                   left: _tapPosition!.dx - 15,
                   top: _tapPosition!.dy - 15,
                   child: Container(
@@ -404,6 +421,13 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
                       color: _pickedColor,
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                   ),
                 ),
