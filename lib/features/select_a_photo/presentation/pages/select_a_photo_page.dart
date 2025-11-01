@@ -210,7 +210,7 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
   Future<void> _openFilterPage() async {
     if (_selectedImage == null) return;
 
-    final result = await Navigator.push(
+    final result = await Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (context) => FilterPage(

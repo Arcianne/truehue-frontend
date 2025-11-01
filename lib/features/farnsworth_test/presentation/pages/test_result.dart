@@ -48,7 +48,7 @@ class TestResultPage extends StatelessWidget {
             _buildAnalysisContainer(diagnosis),
             const Spacer(),
             ElevatedButton(
-              onPressed: () => Navigator.push(
+              onPressed: () => Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
                   builder: (context) => const ModeSelectionPage(),

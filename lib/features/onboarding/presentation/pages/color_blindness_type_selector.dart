@@ -18,7 +18,7 @@ class _ColorBlindnessTypePageState extends State<ColorBlindnessTypePage> {
     await prefs.setString('colorBlindnessType', type);
 
     if (!mounted) return;
-    Navigator.push(
+    Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => const ModeSelectionPage()),
     );

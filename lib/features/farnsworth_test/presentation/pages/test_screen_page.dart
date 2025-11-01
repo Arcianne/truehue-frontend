@@ -290,7 +290,7 @@ void _showResults() {
       debugPrint("Cap $i: ${userOrder[i]}");
     }
 
-    Navigator.push(
+    Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (context) =>
