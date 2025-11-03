@@ -12,7 +12,6 @@ import 'package:truehue/shared/presentation/widgets/nav_button.dart';
 import 'package:truehue/features/take_a_photo/presentation/pages/take_a_photo_page.dart';
 import 'package:truehue/features/ar_live_view/presentation/pages/ar_live_view_page.dart';
 import 'package:truehue/features/color_library/presentation/pages/color_library_page.dart';
-import 'package:truehue/features/home/presentation/pages/home.dart';
 
 Future<void> openARLiveView(BuildContext context) async {
   final prefs = await SharedPreferences.getInstance();
@@ -61,10 +60,7 @@ void openColorLibraryPage(BuildContext context) {
 }
 
 void openHomePage(BuildContext context) {
-  Navigator.pushReplacement(
-    context,
-    MaterialPageRoute(builder: (context) => const Home()),
-  );
+  Navigator.popUntil(context, (route) => route.isFirst);
 }
 
 class SelectAPhotoPage extends StatefulWidget {
@@ -177,9 +173,9 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
       mapped.dy.round(),
     );
 
-    _r = _pickedColor.red;
-    _g = _pickedColor.green;
-    _b = _pickedColor.blue;
+    _r = (_pickedColor.r * 255.0).round();
+    _g = (_pickedColor.g * 255.0).round();
+    _b = (_pickedColor.b * 255.0).round();
 
     _colorFamily = ColorMatcher.getColorFamily(_r, _g, _b);
 
@@ -301,7 +297,7 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Colors.black.withOpacity(0.7), Colors.transparent],
+                  colors: [Colors.black.withValues(alpha: 0.7), Colors.transparent],
                 ),
               ),
               child: Row(
@@ -429,7 +425,7 @@ class _SelectAPhotoPageState extends State<SelectAPhotoPage> {
                   gradient: LinearGradient(
                     begin: Alignment.bottomCenter,
                     end: Alignment.topCenter,
-                    colors: [Colors.black.withOpacity(0.8), Colors.transparent],
+                    colors: [Colors.black.withValues(alpha: 0.8), Colors.transparent],
                   ),
                 ),
                 child: Row(

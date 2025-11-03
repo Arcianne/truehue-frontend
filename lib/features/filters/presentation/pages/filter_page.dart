@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:math';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
@@ -98,9 +97,9 @@ double _deltaE(Color c1, Color c2) {
 }
 
 LabColor _rgbToLab(Color color) {
-  double r = color.red / 255;
-  double g = color.green / 255;
-  double b = color.blue / 255;
+  double r = color.r / 255;
+  double g = color.g / 255;
+  double b = color.b / 255;
 
   r = r > 0.04045 ? pow((r + 0.055) / 1.055, 2.4).toDouble() : r / 12.92;
   g = g > 0.04045 ? pow((g + 0.055) / 1.055, 2.4).toDouble() : g / 12.92;
@@ -349,14 +348,7 @@ class _FilterPageState extends State<FilterPage> {
         hsv.value,
       ).toColor();
 
-      result.setPixelRgba(
-        x,
-        y,
-        newColor.red,
-        newColor.green,
-        newColor.blue,
-        255,
-      );
+      result.setPixelRgba(x, y, newColor.r, newColor.g, newColor.b, 255);
     }
 
     setState(() {
@@ -365,8 +357,9 @@ class _FilterPageState extends State<FilterPage> {
   }
 
   Future<void> _initializeRecolor() async {
-    if (_baseImageForCurrentMode == null || _recolorImagePosition == null)
+    if (_baseImageForCurrentMode == null || _recolorImagePosition == null) {
       return;
+    }
 
     setState(() => _isProcessing = true);
 
@@ -419,13 +412,13 @@ class _FilterPageState extends State<FilterPage> {
       _tapImagePosition = Offset(pixelX.toDouble(), pixelY.toDouble());
       _pickedColor = pickedColor;
       _colorName = ColorMatcher.getColorFamily(
-        _pickedColor.red,
-        _pickedColor.green,
-        _pickedColor.blue,
+        (_pickedColor.r * 255.0).round(),
+        (_pickedColor.g * 255.0).round(),
+        (_pickedColor.b * 255.0).round(),
       );
-      _r = _pickedColor.red;
-      _g = _pickedColor.green;
-      _b = _pickedColor.blue;
+      _r = (_pickedColor.r * 255.0).round();
+      _g = (_pickedColor.g * 255.0).round();
+      _b = (_pickedColor.b * 255.0).round();
       _colorFamily = ColorMatcher.getColorFamily(_r, _g, _b);
 
       if (_currentFilterMode == FilterMode.recolor) {
@@ -562,7 +555,9 @@ class _FilterPageState extends State<FilterPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.white.withOpacity(0.2),
+          color: isSelected
+              ? Colors.white
+              : Colors.white.withValues(alpha: 0.2),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
@@ -585,7 +580,7 @@ class _FilterPageState extends State<FilterPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.7),
+        color: Colors.black.withValues(alpha: 0.7),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -698,7 +693,7 @@ class _FilterPageState extends State<FilterPage> {
                 ),
                 if (_isProcessing)
                   Container(
-                    color: Colors.black.withOpacity(0.5),
+                    color: Colors.black.withValues(alpha: 0.5),
                     child: const Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
@@ -729,7 +724,7 @@ class _FilterPageState extends State<FilterPage> {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          Colors.black.withOpacity(0.7),
+                          Colors.black.withValues(alpha: 0.7),
                           Colors.transparent,
                         ],
                       ),
@@ -787,7 +782,7 @@ class _FilterPageState extends State<FilterPage> {
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
+                            color: Colors.black.withValues(alpha: 0.3),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
@@ -857,7 +852,7 @@ class _FilterPageState extends State<FilterPage> {
                         border: Border.all(color: Colors.white, width: 3),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
+                            color: Colors.black.withValues(alpha: 0.3),
                             blurRadius: 6,
                             offset: const Offset(0, 2),
                           ),
@@ -879,7 +874,7 @@ class _FilterPageState extends State<FilterPage> {
                         begin: Alignment.bottomCenter,
                         end: Alignment.topCenter,
                         colors: [
-                          Colors.black.withOpacity(0.9),
+                          Colors.black.withValues(alpha: 0.9),
                           Colors.transparent,
                         ],
                       ),
@@ -899,7 +894,7 @@ class _FilterPageState extends State<FilterPage> {
                                   ? 'Tap or glide over a color to spotlight it (rest becomes grayscale)'
                                   : 'Tap or glide over a color, then slide to change its hue',
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.8),
+                                color: Colors.white.withValues(alpha: 0.8),
                                 fontSize: 13,
                               ),
                               textAlign: TextAlign.center,

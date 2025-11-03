@@ -200,14 +200,14 @@ class ColorVisionDiagnosis {
 
     final luvCaps = validColors.map((c) => _toLuv(c)).toList();
 
-    double TES = 0.0;
+    double tES = 0.0;
     List<_Vec> segments = [];
 
     for (int i = 1; i < luvCaps.length; i++) {
       final dx = luvCaps[i].u - luvCaps[i - 1].u;
       final dy = luvCaps[i].v - luvCaps[i - 1].v;
       final segLen = sqrt(dx * dx + dy * dy);
-      TES += segLen;
+      tES += segLen;
       segments.add(_Vec(dx, dy, segLen));
     }
 
@@ -222,8 +222,8 @@ class ColorVisionDiagnosis {
     final refAvgDeltaE = refTES / (refLuv.length - 1);
     final tesScale = 3.0 / refAvgDeltaE;
 
-    final TESnorm = TES * tesScale;
-    final cIndex = (TES / (n - 1)) * tesScale;
+    final tESnorm = tES * tesScale;
+    final cIndex = (tES / (n - 1)) * tesScale;
 
     // --- Compute user angle ---
     double sumDx = 0.0, sumDy = 0.0;
@@ -285,42 +285,42 @@ class ColorVisionDiagnosis {
     }
 
     int crossings = _computeCrossings(luvCaps);
-    double sIndex = sqrt(pow(TESnorm, 2) / (TESnorm + crossings + 0.0001));
+    double sIndex = sqrt(pow(tESnorm, 2) / (tESnorm + crossings + 0.0001));
 
-    final failed = (TESnorm > 18.0) || (cIndex > 1.78);
-    final severity = _severityFromCIndex(cIndex, TESnorm);
+    final failed = (tESnorm > 18.0) || (cIndex > 1.78);
+    final severity = _severityFromCIndex(cIndex, tESnorm);
 
     final diagnosis = failed
         ? "Color Vision Deficiency - $severity $type"
         : "Normal Color Vision";
 
     if (debug) {
-      print("===== Farnsworth D15 Analysis =====");
-      print(
+      debugPrint("===== Farnsworth D15 Analysis =====");
+      debugPrint(
         "Ref ΔE avg: ${refAvgDeltaE.toStringAsFixed(2)} → TES scale: ${tesScale.toStringAsFixed(3)}",
       );
-      print(
-        "Raw TES: ${TES.toStringAsFixed(2)} → Scaled TES: ${TESnorm.toStringAsFixed(2)}",
+      debugPrint(
+        "Raw TES: ${tES.toStringAsFixed(2)} → Scaled TES: ${tESnorm.toStringAsFixed(2)}",
       );
-      print("C-index: ${cIndex.toStringAsFixed(2)}");
-      print(
+      debugPrint("C-index: ${cIndex.toStringAsFixed(2)}");
+      debugPrint(
         "Raw angle: ${meanAngleDeg.toStringAsFixed(2)}°, "
         "Ref angle: ${refAngleDeg.toStringAsFixed(2)}°, "
         "→ Calibrated: ${calibratedAngleDeg.toStringAsFixed(2)}°",
       );
-      print("Crossings: $crossings");
-      print("S-index: ${sIndex.toStringAsFixed(2)}");
-      print("Type: $type");
-      print("Severity: $severity");
-      print("Protan: $protPct%, Deutan: $deutPct%, Tritan: $tritPct%");
-      print("===================================");
+      debugPrint("Crossings: $crossings");
+      debugPrint("S-index: ${sIndex.toStringAsFixed(2)}");
+      debugPrint("Type: $type");
+      debugPrint("Severity: $severity");
+      debugPrint("Protan: $protPct%, Deutan: $deutPct%, Tritan: $tritPct%");
+      debugPrint("===================================");
     }
 
     return DiagnosisResult(
       diagnosis: diagnosis,
       errors: crossings,
       unusedCaps: userColorOrder.where((c) => c == null).length,
-      totalLength: TESnorm.round(),
+      totalLength: tESnorm.round(),
       cIndex: cIndex,
       angleDeg: calibratedAngleDeg,
       protanPercentage: protPct,
@@ -348,8 +348,8 @@ class ColorVisionDiagnosis {
     return crossings;
   }
 
-  String _severityFromCIndex(double cIndex, double TES) {
-    if (TES <= 50 && cIndex <= 3.5) return "Normal";
+  String _severityFromCIndex(double cIndex, double tES) {
+    if (tES <= 50 && cIndex <= 3.5) return "Normal";
     if (cIndex <= 4.0) return "Mild";
     if (cIndex <= 5.0) return "Moderate";
     return "Severe";
@@ -369,7 +369,7 @@ class ColorVisionDiagnosis {
   }
 
   _CIELuv _toLuv(Color color) {
-    double r = color.red / 255, g = color.green / 255, b = color.blue / 255;
+    double r = color.r / 255, g = color.g / 255, b = color.b / 255;
 
     r = (r > 0.04045) ? pow((r + 0.055) / 1.055, 2.4).toDouble() : r / 12.92;
     g = (g > 0.04045) ? pow((g + 0.055) / 1.055, 2.4).toDouble() : g / 12.92;
@@ -379,16 +379,16 @@ class ColorVisionDiagnosis {
     double Y = r * 0.2126 + g * 0.7152 + b * 0.0722;
     double Z = r * 0.0193 + g * 0.1192 + b * 0.9505;
 
-    const Xn = 0.95047, Yn = 1.0, Zn = 1.08883;
+    const xn = 0.95047, yn = 1.0, zn = 1.08883;
     double denom = (X + 15 * Y + 3 * Z);
     double uPrime = denom == 0 ? 0 : (4 * X) / denom;
     double vPrime = denom == 0 ? 0 : (9 * Y) / denom;
-    double ur = (4 * Xn) / (Xn + 15 * Yn + 3 * Zn);
-    double vr = (9 * Yn) / (Xn + 15 * Yn + 3 * Zn);
+    double ur = (4 * xn) / (xn + 15 * yn + 3 * zn);
+    double vr = (9 * yn) / (xn + 15 * yn + 3 * zn);
 
-    double L = (Y / Yn > pow(6 / 29, 3))
-        ? 116 * pow(Y / Yn, 1 / 3) - 16
-        : (Y / Yn) * pow(29 / 3, 3);
+    double L = (Y / yn > pow(6 / 29, 3))
+        ? 116 * pow(Y / yn, 1 / 3) - 16
+        : (Y / yn) * pow(29 / 3, 3);
 
     double u = 13 * L * (uPrime - ur);
     double v = 13 * L * (vPrime - vr);

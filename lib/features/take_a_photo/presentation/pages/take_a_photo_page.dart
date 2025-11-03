@@ -12,7 +12,6 @@ import 'package:truehue/shared/presentation/widgets/nav_button.dart';
 import 'package:truehue/features/ar_live_view/presentation/pages/ar_live_view_page.dart';
 import 'package:truehue/features/select_a_photo/presentation/pages/select_a_photo_page.dart';
 import 'package:truehue/features/color_library/presentation/pages/color_library_page.dart';
-import 'package:truehue/features/home/presentation/pages/home.dart';
 
 Future<void> openARLiveView(BuildContext context) async {
   final prefs = await SharedPreferences.getInstance();
@@ -70,10 +69,7 @@ void openColorLibraryPage(BuildContext context) {
 }
 
 void openHomePage(BuildContext context) {
-  Navigator.pushReplacement(
-    context,
-    MaterialPageRoute(builder: (context) => const Home()),
-  );
+  Navigator.popUntil(context, (route) => route.isFirst);
 }
 
 class _TakeAPhotoPageState extends State<TakeAPhotoPage> {

@@ -11,7 +11,6 @@ import 'package:truehue/features/take_a_photo/presentation/pages/take_a_photo_pa
 import 'package:truehue/features/select_a_photo/presentation/pages/select_a_photo_page.dart';
 import 'package:truehue/features/color_library/presentation/pages/color_library_page.dart';
 import 'package:truehue/core/algorithm/knn_color_matcher.dart';
-import 'package:truehue/features/home/presentation/pages/home.dart';
 
 Future<void> openARLiveView(BuildContext context) async {
   final prefs = await SharedPreferences.getInstance();
@@ -61,12 +60,8 @@ void openColorLibraryPage(BuildContext context) {
 }
 
 void openHomePage(BuildContext context) {
-  Navigator.pushReplacement(
-    context,
-    MaterialPageRoute(builder: (context) => const Home()),
-  );
+  Navigator.popUntil(context, (route) => route.isFirst);
 }
-
 
 class ArLiveViewPage extends StatefulWidget {
   final bool assistiveMode;
@@ -136,7 +131,7 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
   }
 
   void _toggleContinuousTTS() async {
-    if (!_ttsReady || !widget.assistiveMode) return;
+    if (!_ttsReady) return;
 
     if (_isSpeakingContinuously) {
       _ttsTimer?.cancel();
@@ -478,7 +473,7 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
+                            color: Colors.black..withValues(alpha: 0.3),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
@@ -522,15 +517,15 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
                               ],
                             ),
                           ),
-                          if (widget.assistiveMode && _ttsReady)
+                          if (_ttsReady)
                             IconButton(
                               icon: Icon(
                                 _isSpeakingContinuously
-                                    ? Icons.volume_off
+                                    ? Icons.volume_up
                                     : Icons.volume_up,
                                 color: _isSpeakingContinuously
-                                    ? Colors.red
-                                    : Colors.blue,
+                                    ? Colors.blue
+                                    : Colors.grey,
                                 size: 28,
                               ),
                               onPressed: _toggleContinuousTTS,
@@ -548,7 +543,7 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
                     child: GestureDetector(
                       onTap: () => setState(() => _showInstructions = false),
                       child: Container(
-                        color: Colors.black.withOpacity(0.8),
+                        color: Colors.black..withValues(alpha: 0.8),
                         child: Center(
                           child: Padding(
                             padding: const EdgeInsets.all(32),
@@ -578,7 +573,7 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
                                 Text(
                                   widget.assistiveMode
                                       ? "1. Tap START to begin\n2. Point the center circle at objects\n3. See color family appear at top\n4. Tap speaker icon to hear color"
-                                      : "1. This shows how ${widget.simulationType} affects vision\n2. Tap START to identify colors\n3. Move camera to explore",
+                                      : "1. This shows how ${widget.simulationType} affects vision\n2. Tap START to identify colors\n3. Move camera to explore\n4. Tap speaker icon to hear color",
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 16,
@@ -618,7 +613,7 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
                         begin: Alignment.bottomCenter,
                         end: Alignment.topCenter,
                         colors: [
-                          Colors.black.withOpacity(0.8),
+                          Colors.black.withValues(alpha: 0.8),
                           Colors.transparent,
                         ],
                       ),

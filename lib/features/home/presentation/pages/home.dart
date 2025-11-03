@@ -131,7 +131,7 @@ class _HomeState extends State<Home> {
             style: TextStyle(
               fontSize: 30,
               fontStyle: FontStyle.italic,
-              color: Color(0xFF130E64),
+              color: Color(0xFFCEF5FF),
             ),
           ),
           const SizedBox(height: 20),
@@ -162,6 +162,7 @@ class _HomeState extends State<Home> {
             style: ElevatedButton.styleFrom(minimumSize: const Size(260, 60)),
             onPressed: openColorLibraryPage,
           ),
+          const SizedBox(height: 20),
           // Display saved selections
           Text('Color Blindness Type: $colorBlindnessType'),
           Text('Live AR Mode: $liveARMode'),

@@ -8,7 +8,6 @@ import 'package:truehue/features/ar_live_view/presentation/pages/ar_live_view_pa
 import 'package:truehue/features/select_a_photo/presentation/pages/select_a_photo_page.dart';
 import 'package:truehue/features/take_a_photo/presentation/pages/take_a_photo_page.dart';
 import 'package:truehue/core/algorithm/knn_color_matcher.dart';
-import 'package:truehue/features/home/presentation/pages/home.dart';
 import 'package:truehue/features/color_library/presentation/pages/red_family.dart';
 import 'package:truehue/features/color_library/presentation/pages/pink_family.dart';
 import 'package:truehue/features/color_library/presentation/pages/orange_family.dart';
@@ -68,10 +67,7 @@ void openColorLibraryPage(BuildContext context) {
 }
 
 void openHomePage(BuildContext context) {
-  Navigator.pushReplacement(
-    context,
-    MaterialPageRoute(builder: (context) => const Home()),
-  );
+  Navigator.popUntil(context, (route) => route.isFirst);
 }
 
 class ColorLibraryPage extends StatefulWidget {
@@ -266,10 +262,10 @@ class _ColorLibraryPageState extends State<ColorLibraryPage> {
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 hintText: 'Search colors...',
-                hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
                 prefixIcon: const Icon(Icons.search, color: Colors.white),
                 filled: true,
-                fillColor: Colors.white.withOpacity(0.1),
+                fillColor: Colors.white.withValues(alpha: 0.1),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
@@ -290,8 +286,8 @@ class _ColorLibraryPageState extends State<ColorLibraryPage> {
                   onSelected: (value) {
                     setState(() => _sortAlphabetical = value);
                   },
-                  backgroundColor: Colors.white.withOpacity(0.1),
-                  selectedColor: Colors.white.withOpacity(0.3),
+                  backgroundColor: Colors.white.withValues(alpha: 0.1),
+                  selectedColor: Colors.white.withValues(alpha: 0.3),
                   labelStyle: TextStyle(
                     color: Colors.white,
                     fontWeight: _sortAlphabetical
@@ -306,8 +302,8 @@ class _ColorLibraryPageState extends State<ColorLibraryPage> {
                   onSelected: (value) {
                     setState(() => _sortAlphabetical = !value);
                   },
-                  backgroundColor: Colors.white.withOpacity(0.1),
-                  selectedColor: Colors.white.withOpacity(0.3),
+                  backgroundColor: Colors.white.withValues(alpha: 0.1),
+                  selectedColor: Colors.white.withValues(alpha: 0.3),
                   labelStyle: TextStyle(
                     color: Colors.white,
                     fontWeight: !_sortAlphabetical
@@ -328,7 +324,7 @@ class _ColorLibraryPageState extends State<ColorLibraryPage> {
                   ? '${ColorMatcher.colorCount} unique colors'
                   : '${_getFilteredCount()} colors found',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
+                color: Colors.white.withValues(alpha: 0.7),
                 fontSize: 14,
               ),
             ),
@@ -345,13 +341,13 @@ class _ColorLibraryPageState extends State<ColorLibraryPage> {
                         Icon(
                           Icons.search_off,
                           size: 64,
-                          color: Colors.white.withOpacity(0.3),
+                          color: Colors.white.withValues(alpha: 0.3),
                         ),
                         const SizedBox(height: 16),
                         Text(
                           'No colors found',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.7),
+                            color: Colors.white.withValues(alpha: 0.7),
                             fontSize: 16,
                           ),
                         ),
@@ -359,7 +355,7 @@ class _ColorLibraryPageState extends State<ColorLibraryPage> {
                         Text(
                           'Try a different search term',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.5),
+                            color: Colors.white.withValues(alpha: 0.5),
                             fontSize: 14,
                           ),
                         ),
@@ -488,7 +484,7 @@ class _ColorLibraryPageState extends State<ColorLibraryPage> {
                   color: _getFamilyColor(family),
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.3),
+                    color: Colors.white.withValues(alpha: 0.3),
                     width: 2,
                   ),
                 ),
@@ -511,7 +507,7 @@ class _ColorLibraryPageState extends State<ColorLibraryPage> {
                     Text(
                       '${familyColors.length} colors',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.6),
+                        color: Colors.white.withValues(alpha: 0.6),
                         fontSize: 14,
                       ),
                     ),
@@ -628,7 +624,7 @@ class ColorFamilyDetailPage extends StatelessWidget {
                   color: color,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.3),
+                    color: Colors.white.withValues(alpha: 0.3),
                     width: 2,
                   ),
                 ),
@@ -651,14 +647,15 @@ class ColorFamilyDetailPage extends StatelessWidget {
                       Text(
                         'RGB(${rgb[0]}, ${rgb[1]}, ${rgb[2]})',
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.5),
+                          color: Colors.white.withValues(alpha: 0.5),
                           fontSize: 12,
                         ),
                       ),
                   ],
                 ),
               ),
-              Icon(Icons.info_outline, color: Colors.white.withOpacity(0.5)),
+              Icon(Icons.info_outline, color: Colors.white.withValues(alpha: 0.5),
+              ),
             ],
           ),
         ),

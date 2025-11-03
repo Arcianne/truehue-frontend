@@ -101,7 +101,7 @@ class _TestScreenPageState extends State<TestScreenPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Text(
-                  '1. Tap a color above\n2. Tap a circle below to place it\n3. Arrange in rainbow order',
+                  '1. Tap a color above\n2. Tap a circle below to place it\n3. Begin with the given color that is locked in place.\n4. Arrange the other colors so their hues transition smoothly from one to the next.',
                   style: TextStyle(color: Color(0xFFCEF5FF)),
                 ),
               ),

@@ -167,7 +167,7 @@ class PurpleFamilyPage extends StatelessWidget {
                   color: color,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.3),
+                    color: Colors.white.withValues(alpha: 0.3),
                     width: 2,
                   ),
                 ),
@@ -190,7 +190,7 @@ class PurpleFamilyPage extends StatelessWidget {
                     Text(
                       'RGB(${rgb[0]}, ${rgb[1]}, ${rgb[2]})',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.5),
+                        color: Colors.white.withValues(alpha: 0.5),
                         fontSize: 12,
                       ),
                     ),

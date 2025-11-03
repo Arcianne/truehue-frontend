@@ -75,7 +75,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   'Current type of colorblindness:',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyLarge?.copyWith(
-                    color: theme.primaryColor.withOpacity(0.8),
+                    color: theme.primaryColor.withValues(alpha: 0.8),
                     fontWeight: FontWeight.w500,
                     fontSize: 18,
                   ),
@@ -98,7 +98,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   'Mode:',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyLarge?.copyWith(
-                    color: theme.primaryColor.withOpacity(0.8),
+                    color: theme.primaryColor.withValues(alpha: 0.8),
                     fontWeight: FontWeight.w500,
                     fontSize: 18,
                   ),
@@ -122,7 +122,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   'Select colorblindness type:',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyLarge?.copyWith(
-                    color: theme.primaryColor.withOpacity(0.8),
+                    color: theme.primaryColor.withValues(alpha: 0.8),
                     fontWeight: FontWeight.w500,
                     fontSize: 18,
                   ),
@@ -131,26 +131,49 @@ class _SettingsPageState extends State<SettingsPage> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   decoration: BoxDecoration(
-                    color: theme.primaryColor.withOpacity(0.1),
+                    color: theme.primaryColor.withValues(
+                      alpha: 0.25,
+                    ), // darker semi-transparent
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: theme.primaryColor.withOpacity(0.3),
+                      color: theme.primaryColor.withValues(alpha: 0.7),
                     ),
                   ),
                   child: DropdownButton<String>(
                     value: _selectedType,
-                    dropdownColor: theme.scaffoldBackgroundColor,
+                    dropdownColor: theme.canvasColor.withValues(
+                      alpha: 0.95,
+                    ),
                     isExpanded: true,
                     underline: const SizedBox(),
                     icon: Icon(
                       Icons.arrow_drop_down,
-                      color: theme.primaryColor,
+                      color: theme.primaryColor.withValues(alpha: 0.8),
                       size: 28,
                     ),
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.primaryColor,
                       fontSize: 20,
                     ),
+                    itemHeight: 56,
+
+                    // selected item shows only the type name, no description
+                    selectedItemBuilder: (BuildContext context) {
+                      return _colorBlindTypes.map((value) {
+                        return Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            value,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w500,
+                              fontSize: 18,
+                              color: theme.primaryColor,
+                            ),
+                          ),
+                        );
+                      }).toList();
+                    },
+
                     onChanged: (String? newValue) {
                       if (newValue != null) {
                         setState(() => _selectedType = newValue);
@@ -164,17 +187,52 @@ class _SettingsPageState extends State<SettingsPage> {
                         );
                       }
                     },
-                    items: _colorBlindTypes
-                        .map(
-                          (value) => DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(
-                              value,
-                              style: const TextStyle(fontSize: 20),
+
+                    items: _colorBlindTypes.map((value) {
+                      final descriptions = {
+                        'Normal Vision': 'No color vision deficiency',
+                        'Protanopia':
+                            'Red-green color blindness (can’t see red well)',
+                        'Deuteranopia':
+                            'Red-green color blindness (can’t see green well)',
+                        'Tritanopia':
+                            'Blue-yellow color blindness (can’t see blue well)',
+                      };
+
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: SizedBox(
+                          height: 56,
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  value,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                if (descriptions[value] != null)
+                                  Text(
+                                    descriptions[value]!,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontStyle: FontStyle.italic,
+                                      color: theme.primaryColor.withValues(
+                                        alpha: 0.6,
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
-                        )
-                        .toList(),
+                        ),
+                      );
+                    }).toList(),
                   ),
                 ),
 
@@ -185,7 +243,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   'Farnsworth D-15 Test:',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyLarge?.copyWith(
-                    color: theme.primaryColor.withOpacity(0.8),
+                    color: theme.primaryColor.withValues(alpha: 0.8),
                     fontWeight: FontWeight.w500,
                     fontSize: 18,
                   ),
@@ -234,14 +292,14 @@ class _SettingsPageState extends State<SettingsPage> {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
       decoration: BoxDecoration(
-        color: theme.primaryColor.withOpacity(0.05),
+        color: theme.primaryColor.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(10),
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         horizontalTitleGap: 4,
         leading: Transform.scale(
-          scale: 0.9, // slightly smaller radio button for balance
+          scale: 0.9,
           child: Radio<String>(
             value: mode,
             groupValue: _selectedMode,
@@ -272,8 +330,8 @@ class _SettingsPageState extends State<SettingsPage> {
         subtitle: Text(
           description,
           style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.primaryColor.withOpacity(0.7),
-            fontSize: 15, // slightly smaller for secondary text
+            color: theme.primaryColor.withValues(alpha: 0.7),
+            fontSize: 15,
           ),
         ),
       ),
