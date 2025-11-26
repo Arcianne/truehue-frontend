@@ -141,9 +141,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   child: DropdownButton<String>(
                     value: _selectedType,
-                    dropdownColor: theme.canvasColor.withValues(
-                      alpha: 0.95,
-                    ),
+                    dropdownColor: theme.canvasColor.withValues(alpha: 0.95),
                     isExpanded: true,
                     underline: const SizedBox(),
                     icon: Icon(
@@ -190,13 +188,13 @@ class _SettingsPageState extends State<SettingsPage> {
 
                     items: _colorBlindTypes.map((value) {
                       final descriptions = {
-                        'Normal Vision': 'No color vision deficiency',
+                        'Normal': 'No color vision deficiency',
                         'Protanopia':
-                            'Red-green color blindness (can’t see red well)',
+                            'Red-green color blindness (difficulty distinguishing red hues)',
                         'Deuteranopia':
-                            'Red-green color blindness (can’t see green well)',
+                            'Red-green color blindness (difficulty distinguishing green hues)',
                         'Tritanopia':
-                            'Blue-yellow color blindness (can’t see blue well)',
+                            'Blue-yellow color blindness (difficulty distinguishing blue and yellow hues)',
                       };
 
                       return DropdownMenuItem<String>(

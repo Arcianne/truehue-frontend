@@ -16,11 +16,15 @@ Future<void> openARLiveView(BuildContext context) async {
   final prefs = await SharedPreferences.getInstance();
   final mode = prefs.getString('liveARMode') ?? 'Assistive';
   final colorBlindType = prefs.getString('colorBlindnessType') ?? 'Normal';
-
-  // Determine assistiveMode and simulationType based on settings
   final bool assistiveMode = mode == 'Assistive';
+  String colorBlindTypeFormatted = colorBlindType.toLowerCase();
+
+  if (assistiveMode && colorBlindTypeFormatted == 'normal') {
+    colorBlindTypeFormatted = 'protanopia';
+  }
+
   final String? simulationType = mode == 'Simulation'
-      ? colorBlindType.toLowerCase()
+      ? colorBlindTypeFormatted
       : null;
 
   if (!context.mounted) return;
@@ -31,6 +35,7 @@ Future<void> openARLiveView(BuildContext context) async {
       builder: (context) => ArLiveViewPage(
         assistiveMode: assistiveMode,
         simulationType: simulationType,
+        colorBlindType: colorBlindTypeFormatted,
       ),
     ),
   );
@@ -66,11 +71,15 @@ void openHomePage(BuildContext context) {
 class ArLiveViewPage extends StatefulWidget {
   final bool assistiveMode;
   final String? simulationType;
+  final String? assistiveType;
+  final String colorBlindType;
 
   const ArLiveViewPage({
     super.key,
     required this.assistiveMode,
     this.simulationType,
+    this.assistiveType,
+    this.colorBlindType = 'normal',
   });
 
   @override
@@ -85,6 +94,15 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
   bool _isScanning = false;
   bool _ttsReady = false;
   bool _showInstructions = true;
+
+  // New controls for simulation mode
+  bool _isSplitMode = false;
+  bool _colorDetectionEnabled = true;
+  String _currentSimulationType = 'protanopia';
+
+  // Assistive mode controls
+  bool _assistiveFilterEnabled = true;
+  String _assistiveColorBlindType = 'protanopia';
 
   Color _sampledColor = Colors.transparent;
   String _colorFamily = "";
@@ -105,6 +123,13 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
   @override
   void initState() {
     super.initState();
+    _currentSimulationType = widget.simulationType ?? 'protanopia';
+    _assistiveColorBlindType = widget.colorBlindType;
+
+    // ADD THIS DEBUG LINE
+  debugPrint("🔍 Assistive Color Blind Type: $_assistiveColorBlindType");
+  debugPrint("🔍 Widget Color Blind Type: ${widget.colorBlindType}");
+
     _initializeTts();
     _initializeCamera();
     Timer(const Duration(seconds: 5), () {
@@ -204,6 +229,12 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
   }
 
   Future<void> _processCameraImage(CameraImage image) async {
+    // Skip processing if color detection is disabled or in split mode
+    if (!_colorDetectionEnabled || (_isSplitMode && !widget.assistiveMode)) {
+      _isProcessing = false;
+      return;
+    }
+
     final now = DateTime.now();
     if (now.difference(_lastFrameProcessed).inMilliseconds < 100) return;
     _lastFrameProcessed = now;
@@ -215,10 +246,10 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
       final rgb = _convertYUV420ToImage(image);
       if (rgb == null) return;
 
-      // ------------------ Weighted Average Sampling (EXACTLY like Take A Photo) ------------------
+      // ------------------ Weighted Average Sampling ------------------
       final centerX = rgb.width ~/ 2;
       final centerY = rgb.height ~/ 2;
-      const radius = 3; // Same as take-a-photo default
+      const radius = 3;
 
       int r = 0, g = 0, b = 0, totalWeight = 0;
 
@@ -262,7 +293,7 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
       final smoothedB = (_bBuffer.reduce((a, b) => a + b) / _bBuffer.length)
           .round();
 
-      // ------------------ KNN Color Matching (Let KNN handle EVERYTHING) ------------------
+      // ------------------ KNN Color Matching  ------------------
       final colorFamily = ColorMatcher.getColorFamily(
         smoothedR,
         smoothedG,
@@ -271,7 +302,6 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
 
       final displayColor = Color.fromARGB(255, smoothedR, smoothedG, smoothedB);
 
-      // ------------------ Update UI ------------------
       const threshold = 5;
       if ((_r - smoothedR).abs() > threshold ||
           (_g - smoothedG).abs() > threshold ||
@@ -332,23 +362,62 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
     }
   }
 
-  ColorFilter _getColorFilter(String type) {
-    switch (type) {
-      case 'deuteranopia':
+ColorFilter _getAssistiveColorFilter(String type) {
+    switch (type.toLowerCase()) {
+      case 'protanopia': // highlight RED
         return const ColorFilter.matrix([
-          0.625,
-          0.375,
+          // R' = 1.20*R
+          1.20, 0.00, 0.00, 0, 0,
+          // G' = grayscale(R,G,B)
+          0.33, 0.33, 0.33, 0, 0,
+          // B' = grayscale(R,G,B)
+          0.33, 0.33, 0.33, 0, 0,
+          // A
+          0, 0, 0, 1, 0,
+        ]);
+
+      case 'deuteranopia': // highlight GREEN
+        return const ColorFilter.matrix([
+          // R' = grayscale(R,G,B)
+          0.33, 0.33, 0.33, 0, 0,
+          // G' = 1.15*G
+          0.00, 1.15, 0.00, 0, 0,
+          // B' = grayscale(R,G,B)
+          0.33, 0.33, 0.33, 0, 0,
+          // A
+          0, 0, 0, 1, 0,
+        ]);
+
+      case 'tritanopia': //highlight YELLOW
+      return const ColorFilter.matrix([
+          // R' = boosted grayscale (stronger red presence)
+          0.45, 0.45, 0.10, 0, 15,
+
+          // G' = boosted grayscale (stronger green presence)
+          0.45, 0.45, 0.10, 0, 15,
+
+          // B' = reduce blue slightly because blue perception is weak in Tritanopia
+          0.20, 0.20, 0.20, 0, -20,
+
+          // A
+          0, 0, 0, 1, 0,
+        ]);
+
+      default: // normal / fallback
+        return const ColorFilter.matrix([
+          1,
           0,
           0,
           0,
-          0.7,
-          0.3,
+          0,
+          0,
+          1,
           0,
           0,
           0,
           0,
-          0.3,
-          0.7,
+          0,
+          1,
           0,
           0,
           0,
@@ -357,19 +426,48 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
           1,
           0,
         ]);
+    }
+  }
+
+  ColorFilter _getColorFilter(String type) {
+    switch (type.toLowerCase()) {
+      case 'deuteranopia':
+        return const ColorFilter.matrix([
+          0.625,
+          0.375,
+          0.000,
+          0,
+          0,
+          0.700,
+          0.300,
+          0.000,
+          0,
+          0,
+          0.000,
+          0.300,
+          0.700,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+        ]);
+
       case 'tritanopia':
         return const ColorFilter.matrix([
-          0.95,
-          0.05,
+          0.950,
+          0.050,
+          0.000,
           0,
           0,
-          0,
-          0,
+          0.000,
           0.433,
           0.567,
           0,
           0,
-          0,
+          0.000,
           0.475,
           0.525,
           0,
@@ -380,20 +478,21 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
           1,
           0,
         ]);
+
       case 'protanopia':
       default:
         return const ColorFilter.matrix([
           0.567,
           0.433,
-          0,
+          0.000,
           0,
           0,
           0.558,
           0.442,
+          0.000,
           0,
           0,
-          0,
-          0,
+          0.000,
           0.242,
           0.758,
           0,
@@ -405,6 +504,87 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
           0,
         ]);
     }
+  }
+
+
+  String _getColorBlindnessLabel(String type) {
+    switch (type) {
+      case 'deuteranopia':
+        return 'Deuteranopia';
+      case 'tritanopia':
+        return 'Tritanopia';
+      case 'protanopia':
+      default:
+        return 'Protanopia';
+    }
+  }
+
+  String _getHighlightedColorName(String type) {
+    switch (type) {
+      case 'protanopia':
+        return 'Red';
+      case 'deuteranopia':
+        return 'Green';
+      case 'tritanopia':
+        return 'Blue';
+      default:
+        return 'Color';
+    }
+  }
+
+  void _showColorBlindnessMenu() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF130E64),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Select Color Blindness Type',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 13),
+            _buildColorBlindnessOption(
+              'protanopia',
+              'Protanopia (difficulty distinguishing red hues)',
+            ),
+            _buildColorBlindnessOption(
+              'deuteranopia',
+              'Deuteranopia (difficulty distinguishing green hues)',
+            ),
+            _buildColorBlindnessOption(
+              'tritanopia',
+              'Tritanopia (difficulty distinguishing blue and yellow hues)',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildColorBlindnessOption(String type, String label) {
+    final isSelected = _currentSimulationType == type;
+    return ListTile(
+      leading: Icon(
+        isSelected ? Icons.check_circle : Icons.circle_outlined,
+        color: isSelected ? Colors.blue : Colors.grey,
+      ),
+      title: Text(
+        label,
+        style: TextStyle(
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      onTap: () {
+        setState(() => _currentSimulationType = type);
+        Navigator.pop(context);
+      },
+    );
   }
 
   @override
@@ -425,43 +605,293 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
           if (snapshot.connectionState == ConnectionState.done) {
             return Stack(
               children: [
-                Positioned.fill(
-                  child: widget.assistiveMode
-                      ? CameraPreview(_controller!)
-                      : ColorFiltered(
-                          colorFilter: _getColorFilter(
-                            widget.simulationType ?? 'protanopia',
-                          ),
-                          child: CameraPreview(_controller!),
-                        ),
-                ),
-                // Center circle
-                Align(
-                  alignment: Alignment.center,
-                  child: Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: _isScanning ? Colors.green : Colors.white,
-                        width: 3,
+                // Camera preview (full or split)
+                if (widget.assistiveMode)
+                  // Assistive mode with optional filter
+                  Positioned.fill(
+                    child: _assistiveFilterEnabled
+                        ? ColorFiltered(
+                            colorFilter: _getAssistiveColorFilter(
+                              _assistiveColorBlindType,
+                            ),
+                            child: CameraPreview(_controller!),
+                          )
+                        : CameraPreview(_controller!),
+                  )
+                else if (!_isSplitMode)
+                  Positioned.fill(
+                    child: ColorFiltered(
+                      colorFilter: _getColorFilter(
+                        _currentSimulationType,
                       ),
-                      borderRadius: BorderRadius.circular(60),
+                      child: CameraPreview(_controller!),
                     ),
-                    child: Center(
-                      child: Container(
-                        width: 20,
-                        height: 20,
-                        decoration: BoxDecoration(
+                  )
+                else
+                  // Split mode for simulation
+                  Row(
+                    children: [
+                      // Normal view (left)
+                      Expanded(
+                        child: Stack(
+                          children: [
+                            CameraPreview(_controller!),
+                            Positioned(
+                              top: 40,
+                              left: 0,
+                              right: 0,
+                              child: Center(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.6),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: const Text(
+                                    'Normal Vision',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Divider
+                      Container(width: 2, color: Colors.white),
+                      // Simulated view (right)
+                      Expanded(
+                        child: Stack(
+                          children: [
+                            ColorFiltered(
+                              colorFilter: _getColorFilter(
+                                _currentSimulationType,
+                              ),
+                              child: CameraPreview(_controller!),
+                            ),
+                            Positioned(
+                              top: 40,
+                              left: 0,
+                              right: 0,
+                              child: Center(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.6),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    _getColorBlindnessLabel(
+                                      _currentSimulationType,
+                                    ),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                // Assistive mode controls (top right)
+                if (widget.assistiveMode)
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top + 16,
+                    right: 16,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        // Filter toggle
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.6),
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          child: IconButton(
+                            icon: Icon(
+                              _assistiveFilterEnabled
+                                  ? Icons.filter_alt
+                                  : Icons.filter_alt_outlined,
+                              color: _assistiveFilterEnabled
+                                  ? Colors.green
+                                  : Colors.white,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _assistiveFilterEnabled = !_assistiveFilterEnabled;
+                              });
+                            },
+                            tooltip: _assistiveFilterEnabled
+                                ? 'Disable Filter'
+                                : 'Enable Filter',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                // Simulation mode controls (top right)
+                if (!widget.assistiveMode)
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top + 16,
+                    right: 16,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        // Split mode toggle
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.6),
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          child: IconButton(
+                            icon: Icon(
+                              _isSplitMode ? Icons.fullscreen : Icons.compare,
+                              color: Colors.white,
+                            ),
+                            onPressed: () {
+                              setState(() => _isSplitMode = !_isSplitMode);
+                            },
+                            tooltip: _isSplitMode
+                                ? 'Full Screen'
+                                : 'Split View',
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Color blindness type selector
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.6),
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          child: IconButton(
+                            icon: const Icon(
+                              Icons.palette,
+                              color: Colors.white,
+                            ),
+                            onPressed: _showColorBlindnessMenu,
+                            tooltip: 'Change Type',
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Color detection toggle
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.6),
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          child: IconButton(
+                            icon: Icon(
+                              _colorDetectionEnabled
+                                  ? Icons.colorize
+                                  : Icons.colorize_outlined,
+                              color: _colorDetectionEnabled
+                                  ? Colors.green
+                                  : Colors.white,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _colorDetectionEnabled =
+                                    !_colorDetectionEnabled;
+                                if (!_colorDetectionEnabled) {
+                                  _colorFamily = "";
+                                  _sampledColor = Colors.transparent;
+                                }
+                              });
+                            },
+                            tooltip: 'Toggle Color Detection',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                // Filter info badge (assistive mode)
+                if (widget.assistiveMode && _assistiveFilterEnabled)
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top + 16,
+                    left: 16,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.7),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.green, width: 2),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.visibility,
+                            color: Colors.green,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Highlighting ${_getHighlightedColorName(_assistiveColorBlindType)}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                // Center circle (only if not in split mode or in assistive mode)
+                if (widget.assistiveMode ||
+                    (!_isSplitMode && _colorDetectionEnabled))
+                  Align(
+                    alignment: Alignment.center,
+                    child: Container(
+                      width: 120,
+                      height: 120,
+                      decoration: BoxDecoration(
+                        border: Border.all(
                           color: _isScanning ? Colors.green : Colors.white,
-                          borderRadius: BorderRadius.circular(10),
+                          width: 3,
+                        ),
+                        borderRadius: BorderRadius.circular(60),
+                      ),
+                      child: Center(
+                        child: Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            color: _isScanning ? Colors.green : Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
+
                 // Color card
-                if (_isScanning && _colorFamily.isNotEmpty)
+                if (_isScanning &&
+                    _colorFamily.isNotEmpty &&
+                    _colorDetectionEnabled &&
+                    !_isSplitMode)
                   Positioned(
                     top: MediaQuery.of(context).padding.top + 70,
                     left: 16,
@@ -473,7 +903,7 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black..withValues(alpha: 0.3),
+                            color: Colors.black.withValues(alpha: 0.3),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
@@ -520,9 +950,7 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
                           if (_ttsReady)
                             IconButton(
                               icon: Icon(
-                                _isSpeakingContinuously
-                                    ? Icons.volume_up
-                                    : Icons.volume_up,
+                                Icons.volume_up,
                                 color: _isSpeakingContinuously
                                     ? Colors.blue
                                     : Colors.grey,
@@ -537,13 +965,14 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
                       ),
                     ),
                   ),
+
                 // Instructions overlay
                 if (_showInstructions)
                   Positioned.fill(
                     child: GestureDetector(
                       onTap: () => setState(() => _showInstructions = false),
                       child: Container(
-                        color: Colors.black..withValues(alpha: 0.8),
+                        color: Colors.black.withValues(alpha: 0.8),
                         child: Center(
                           child: Padding(
                             padding: const EdgeInsets.all(32),
@@ -572,8 +1001,8 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
                                 const SizedBox(height: 16),
                                 Text(
                                   widget.assistiveMode
-                                      ? "1. Tap START to begin\n2. Point the center circle at objects\n3. See color family appear at top\n4. Tap speaker icon to hear color"
-                                      : "1. This shows how ${widget.simulationType} affects vision\n2. Tap START to identify colors\n3. Move camera to explore\n4. Tap speaker icon to hear color",
+                                      ? "1. Tap filter icon to enable/disable color highlighting\n2. Your color type (${_getColorBlindnessLabel(_assistiveColorBlindType)}) is set in Settings\n3. Everything will be grayscale except the problematic color\n4. Tap START to begin color detection\n5. Point center circle at objects to identify colors"
+                                      : "1. Use split view to compare normal vs simulated vision\n2. Change color blindness type with palette icon\n3. Toggle color detection on/off\n4. Tap START to identify colors",
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 16,
@@ -596,54 +1025,56 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
                       ),
                     ),
                   ),
-                // Bottom scanning button
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: Container(
-                    padding: EdgeInsets.only(
-                      bottom: MediaQuery.of(context).padding.bottom + 16,
-                      top: 16,
-                      left: 16,
-                      right: 16,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.bottomCenter,
-                        end: Alignment.topCenter,
-                        colors: [
-                          Colors.black.withValues(alpha: 0.8),
-                          Colors.transparent,
-                        ],
+
+                // Bottom scanning button (only show if color detection is enabled and not in split mode)
+                if (_colorDetectionEnabled && !_isSplitMode)
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      padding: EdgeInsets.only(
+                        bottom: MediaQuery.of(context).padding.bottom + 16,
+                        top: 16,
+                        left: 16,
+                        right: 16,
                       ),
-                    ),
-                    child: ElevatedButton.icon(
-                      onPressed: _toggleScanning,
-                      icon: Icon(_isScanning ? Icons.stop : Icons.play_arrow),
-                      label: Text(
-                        _isScanning ? "STOP SCANNING" : "START SCANNING",
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.8),
+                            Colors.transparent,
+                          ],
                         ),
                       ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _isScanning
-                            ? Colors.red
-                            : Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 32,
-                          vertical: 16,
+                      child: ElevatedButton.icon(
+                        onPressed: _toggleScanning,
+                        icon: Icon(_isScanning ? Icons.stop : Icons.play_arrow),
+                        label: Text(
+                          _isScanning ? "STOP SCANNING" : "START SCANNING",
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _isScanning
+                              ? Colors.red
+                              : Colors.green,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 32,
+                            vertical: 16,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
               ],
             );
           } else {

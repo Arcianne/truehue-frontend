@@ -17,10 +17,15 @@ Future<void> openARLiveView(BuildContext context) async {
   final prefs = await SharedPreferences.getInstance();
   final mode = prefs.getString('liveARMode') ?? 'Assistive';
   final colorBlindType = prefs.getString('colorBlindnessType') ?? 'Normal';
-
   final bool assistiveMode = mode == 'Assistive';
+  String colorBlindTypeFormatted = colorBlindType.toLowerCase();
+
+  if (assistiveMode && colorBlindTypeFormatted == 'normal') {
+    colorBlindTypeFormatted = 'protanopia';
+  }
+
   final String? simulationType = mode == 'Simulation'
-      ? colorBlindType.toLowerCase()
+      ? colorBlindTypeFormatted
       : null;
 
   if (!context.mounted) return;
@@ -31,6 +36,7 @@ Future<void> openARLiveView(BuildContext context) async {
       builder: (context) => ArLiveViewPage(
         assistiveMode: assistiveMode,
         simulationType: simulationType,
+        colorBlindType: colorBlindTypeFormatted,
       ),
     ),
   );
@@ -210,9 +216,9 @@ class _TakeAPhotoPageState extends State<TakeAPhotoPage> {
       mapped.dy.round(),
     );
 
-    _r = (_pickedColor.r * 255).round();
-    _g = (_pickedColor.g * 255).round();
-    _b = (_pickedColor.b * 255).round();
+    _r = _pickedColor.red;
+    _g = _pickedColor.green;
+    _b = _pickedColor.blue;
 
     _colorFamily = ColorMatcher.getColorFamily(_r, _g, _b);
 

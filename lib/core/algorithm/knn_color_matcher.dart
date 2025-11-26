@@ -1,8 +1,5 @@
 import 'dart:math';
 
-/// A utility class for matching RGB colors to their nearest named color
-/// using K-Nearest Neighbors algorithm with an extensive color database
-/// Contains 750+ unique color names across all families (NO DUPLICATES!)
 class ColorMatcher {
   // MASSIVE comprehensive color palette - 100+ colors per family
   static const Map<String, List<int>> _colorPalette = {
@@ -718,23 +715,6 @@ class ColorMatcher {
     'Asphalt': [19, 19, 19],
   };
 
-  // static String classifyRedPinkPurple(int r, int g, int b) {
-  //   double rf = r / 255.0;
-  //   double gf = g / 255.0;
-  //   double bf = b / 255.0;
-
-  //   double maxVal = [rf, gf, bf].reduce((a, b) => a > b ? a : b);
-  //   double minVal = [rf, gf, bf].reduce((a, b) => a < b ? a : b);
-  //   double lightness = (maxVal + minVal) / 2.0;
-
-  //   double redBlueRatio = r / (b + 1);
-
-  //   if (lightness > 0.55) return "Pink";
-  //   if (redBlueRatio > 1.05 && r > g * 0.8) return "Pink";
-  //   if (b > r * 0.6) return "Purple";
-  //   return "Red";
-  // }
-
   static void addColor(String name, List<int> rgb) {
     _colorPalette[name] = rgb;
   }
@@ -791,9 +771,8 @@ class ColorMatcher {
     return mostCommon;
   }
 
-  /// Get a simplified color family name with separated Gray, Black, and White
   static String getColorFamily(int r, int g, int b) {
-    // Normalize to 0–1
+    // Normalize RGB to 0–1
     double rf = r / 255.0;
     double gf = g / 255.0;
     double bf = b / 255.0;
@@ -808,8 +787,8 @@ class ColorMatcher {
 
     // --- Achromatic colors ---
     if (lightness < 0.25 && saturation < 0.15) return "Black";
-    if (saturation < 0.12 && lightness > 0.6) return "White";
-    if (saturation < 0.15 && lightness >= 0.25 && lightness <= 0.6) {
+    if (lightness > 0.85 && saturation < 0.15) return "White";
+    if (saturation < 0.15 && lightness >= 0.25 && lightness <= 0.85) {
       return "Gray";
     }
 
@@ -826,63 +805,50 @@ class ColorMatcher {
     }
     if (hue < 0) hue += 360;
 
-    // --- Brown detection ---
-    if (saturation < 0.55 &&
-        lightness > 0.2 &&
-        lightness < 0.65 &&
-        r > g &&
-        g > b &&
-        r > 90) {
+// --- Brown detection (dark/muted oranges) ---
+    if (hue >= 20 &&
+        hue < 45 &&
+        lightness >= 0.2 &&
+        lightness < 0.5 &&
+        saturation >= 0.25 &&
+        saturation <= 0.65) {
       return "Brown";
     }
 
-    // --- Red, Pink, Orange, Purple detection ---
-    if ((hue >= 345 || hue < 40) || (hue >= 290 && hue < 345)) {
-      return classifyRedPinkOrangePurple(r, g, b, hue, lightness, saturation);
+    // --- Orange detection  ---
+    if (hue >= 15 && hue < 45 && lightness >= 0.5 && saturation >= 0.4) {
+      return "Orange";
     }
 
-    // --- Other hue-based families ---
-    if (hue >= 40 && hue < 70) return "Yellow";
+    // --- Yellow detection (bright OR muted yellow) ---
+    if (hue >= 45 && hue < 70 && lightness >= 0.4) {
+      return "Yellow";
+    }
+
+    // --- Red and Pink detection ---
+    if ((hue >= 345 || hue < 15)) {
+      return lightness < 0.45 ? "Red" : "Pink";
+    }
+
+    // --- Green detection ---
+    if (hue >= 70 && hue < 165 && saturation > 0.25) return "Green";
+
+    // --- Blue detection ---
+    if (hue >= 165 && hue < 250 && saturation > 0.25) return "Blue";
+
+    // --- Purple detection ---
+    if (hue >= 250 && hue < 290 && saturation > 0.25) return "Purple";
+
+    // --- Pink detection for high hue/light purple zone ---
+    if (hue >= 290 && hue < 345) return "Pink";
+
+    // --- Fallback by nearest hue if nothing matches ---
+    if (hue < 15 || hue >= 345) return "Red";
+    if (hue >= 15 && hue < 45) return "Orange";
+    if (hue >= 45 && hue < 70) return "Yellow";
     if (hue >= 70 && hue < 165) return "Green";
     if (hue >= 165 && hue < 250) return "Blue";
     if (hue >= 250 && hue < 290) return "Purple";
-
-    return "Unknown"; // fallback
-  }
-
-  /// Helper to distinguish Red, Pink, Orange, and Purple correctly
-  static String classifyRedPinkOrangePurple(
-    int r,
-    int g,
-    int b,
-    double hue,
-    double lightness,
-    double saturation,
-  ) {
-    // --- True Red zone (345°–15°) ---
-    if (hue >= 345 || hue < 15) {
-      if (lightness < 0.45) return "Red";
-      if (lightness >= 0.45 && b > g && b > (r * 0.6)) return "Pink";
-      if (lightness > 0.55 && saturation < 0.9) return "Pink";
-      return "Red";
-    }
-
-    // --- Coral / Orange-red zone (15°–40°) ---
-    if (hue >= 15 && hue < 40) {
-      // Brighter and warm → Orange or Coral
-      if (lightness > 0.35 && g > b && saturation > 0.4) return "Orange";
-      // Slightly darker reds here are Red-Orange
-      return "Red";
-    }
-
-    // --- Purple / Magenta zone (290°–345°) ---
-    if (hue >= 290 && hue < 345) {
-      if (lightness > 0.6 && r > b * 1.1) return "Pink";
-      if (b > r && lightness < 0.55) return "Purple";
-      return "Magenta";
-    }
-
-    // fallback
-    return "Red";
+    return "Pink"; // absolute last fallback
   }
 }

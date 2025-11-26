@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import 'package:truehue/features/farnsworth_test/presentation/pages/test_result.dart';
 
 class TestScreenPage extends StatefulWidget {
@@ -27,27 +28,116 @@ class _TestScreenPageState extends State<TestScreenPage> {
     const Color(0xFF8C74C7),
   ];
 
-  late List<Color?> _availableSlots; // placeholders for available colors
+  late List<Color?> _availableSlots;
   List<Color?> _placedColors = List.filled(15, null);
   int? _selectedIndex;
+
+  // Tutorial Coach Mark
+  List<TargetFocus> targets = [];
+  late TutorialCoachMark tutorialCoachMark;
+
+  // Keys for pointing
+  final GlobalKey keyPalette = GlobalKey();
+  final GlobalKey keyLockedColor = GlobalKey();
+  final GlobalKey keyPlacementArea = GlobalKey();
+  final GlobalKey keyViewResults = GlobalKey();
 
   @override
   void initState() {
     super.initState();
     _resetTest();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showTutorial());
+  }
+
+  void _showTutorial() {
+    targets = [
+      TargetFocus(
+        identify: "palette",
+        keyTarget: keyPalette,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            child: _buildInstructionBox("Tap a color from here to select it."),
+          ),
+        ],
+      ),
+      TargetFocus(
+        identify: "lockedColor",
+        keyTarget: keyLockedColor,
+        contents: [
+          TargetContent(
+            align: ContentAlign.top,
+            child: _buildInstructionBox(
+              "Start arranging from this BLUE color — it's locked in place as your starting point.",
+            ),
+          ),
+        ],
+      ),
+      TargetFocus(
+        identify: "placement",
+        keyTarget: keyPlacementArea,
+        contents: [
+          TargetContent(
+            align: ContentAlign.top,
+            child: _buildInstructionBox(
+              "Tap a circle here to place your chosen color. Try to make the hues flow smoothly!",
+            ),
+          ),
+        ],
+      ),
+      TargetFocus(
+        identify: "submit",
+        keyTarget: keyViewResults,
+        contents: [
+          TargetContent(
+            align: ContentAlign.top,
+            child: _buildInstructionBox(
+              "When all colors are placed, tap here to view your results.",
+            ),
+          ),
+        ],
+      ),
+    ];
+
+    tutorialCoachMark = TutorialCoachMark(
+      targets: targets,
+      colorShadow: Colors.black.withValues(alpha: 0.7),
+      textSkip: "Skip",
+      paddingFocus: 10,
+      opacityShadow: 0.8,
+      onFinish: () => debugPrint("Tutorial finished"),
+      onSkip: () {
+        debugPrint("Tutorial skipped");
+        return true;
+      },
+    );
+
+    tutorialCoachMark.show(context: context);
+  }
+
+  Widget _buildInstructionBox(String text) {
+    return Container(
+      width: 250,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.black87,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: const TextStyle(color: Colors.white, fontSize: 16, height: 1.4),
+      ),
+    );
   }
 
   void _resetTest() {
     setState(() {
       _placedColors = List<Color?>.filled(15, null);
-      _placedColors[0] = _colors[0]; // Reference color fixed
+      _placedColors[0] = _colors[0];
 
       final shuffledColors = List<Color>.from(_colors.sublist(1))..shuffle();
-      _availableSlots = List<Color?>.filled(shuffledColors.length, null);
-      for (int i = 0; i < shuffledColors.length; i++) {
-        _availableSlots[i] = shuffledColors[i];
-      }
-
+      _availableSlots = List<Color?>.from(shuffledColors);
       _selectedIndex = null;
     });
   }
@@ -57,10 +147,7 @@ class _TestScreenPageState extends State<TestScreenPage> {
     final placedCount = _placedColors.where((c) => c != null).length;
     final screenWidth = MediaQuery.of(context).size.width;
 
-    // Compute circle size (fits 7 per row)
     final circleSize = (screenWidth - 40 - (8 * 6)) / 7;
-
-    // Rows for placement area
     final rows = (_placedColors.length / 7).ceil();
     final gridHeight = (circleSize * rows) + (8 * (rows - 1));
 
@@ -92,7 +179,6 @@ class _TestScreenPageState extends State<TestScreenPage> {
 
               const SizedBox(height: 10),
 
-              // Instructions
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
@@ -101,19 +187,22 @@ class _TestScreenPageState extends State<TestScreenPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Text(
-                  '1. Tap a color above\n2. Tap a circle below to place it\n3. Begin with the given color that is locked in place.\n4. Arrange the other colors so their hues transition smoothly from one to the next.',
+                  '1. Tap a color from the palette\n'
+                  '2. Tap on a blank circle below to place it\n'
+                  '3. Begin with the BLUE color at the start that is beside the blank circle.\n'
+                  '4. Arrange the other colors so their hues transition smoothly from one to the next.',
                   style: TextStyle(color: Color(0xFFCEF5FF)),
                 ),
               ),
 
               const SizedBox(height: 30),
 
-              // --- Available Colors with white placeholders ---
+              // Available Colors
               SizedBox(
+                key: keyPalette,
                 height: circleSize * 2 + 8,
                 child: GridView.builder(
                   physics: const NeverScrollableScrollPhysics(),
-                  shrinkWrap: true,
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 7,
                     crossAxisSpacing: 8,
@@ -127,10 +216,8 @@ class _TestScreenPageState extends State<TestScreenPage> {
                           ? () => setState(() => _selectedIndex = index)
                           : null,
                       child: Container(
-                        width: circleSize,
-                        height: circleSize,
                         decoration: BoxDecoration(
-                          color: Colors.white, // white placeholder
+                          color: color ?? Colors.white,
                           shape: BoxShape.circle,
                           border: Border.all(
                             color: _selectedIndex == index
@@ -139,16 +226,6 @@ class _TestScreenPageState extends State<TestScreenPage> {
                             width: _selectedIndex == index ? 3 : 1.5,
                           ),
                         ),
-                        child: color != null
-                            ? Container(
-                                width: circleSize,
-                                height: circleSize,
-                                decoration: BoxDecoration(
-                                  color: color,
-                                  shape: BoxShape.circle,
-                                ),
-                              )
-                            : null,
                       ),
                     );
                   },
@@ -157,12 +234,12 @@ class _TestScreenPageState extends State<TestScreenPage> {
 
               const SizedBox(height: 30),
 
-              // --- Placement Area ---
+              // Placement Area
               SizedBox(
+                key: keyPlacementArea,
                 height: gridHeight,
                 child: GridView.builder(
                   physics: const NeverScrollableScrollPhysics(),
-                  shrinkWrap: true,
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 7,
                     crossAxisSpacing: 8,
@@ -172,6 +249,7 @@ class _TestScreenPageState extends State<TestScreenPage> {
                   itemCount: _placedColors.length,
                   itemBuilder: (context, index) {
                     return Center(
+                      key: index == 0 ? keyLockedColor : null,
                       child: GestureDetector(
                         onTap: () => _handleTap(index),
                         child: AnimatedContainer(
@@ -185,17 +263,14 @@ class _TestScreenPageState extends State<TestScreenPage> {
                               color: index == 0
                                   ? Colors.blueAccent
                                   : _placedColors[index] == null
-                                  ? Colors.white30
-                                  : Colors.greenAccent,
+                                      ? Colors.white30
+                                      : Colors.greenAccent,
                               width: 2,
                             ),
                           ),
                           child: _placedColors[index] == null
-                              ? const Icon(
-                                  Icons.add,
-                                  color: Colors.white30,
-                                  size: 18,
-                                )
+                              ? const Icon(Icons.add,
+                                  color: Colors.white30, size: 18)
                               : null,
                         ),
                       ),
@@ -206,7 +281,6 @@ class _TestScreenPageState extends State<TestScreenPage> {
 
               const SizedBox(height: 20),
 
-              // Progress
               Text(
                 '$placedCount/15 colors placed',
                 style: const TextStyle(color: Colors.white70),
@@ -226,13 +300,12 @@ class _TestScreenPageState extends State<TestScreenPage> {
 
               // Submit button
               ElevatedButton(
+                key: keyViewResults,
                 onPressed: placedCount == 15 ? _showResults : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFCEF5FF),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 40,
-                    vertical: 15,
-                  ),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -246,7 +319,6 @@ class _TestScreenPageState extends State<TestScreenPage> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 20),
             ],
           ),
@@ -256,22 +328,18 @@ class _TestScreenPageState extends State<TestScreenPage> {
   }
 
   void _handleTap(int slotIndex) {
-    if (slotIndex == 0) return; // Can't move reference color
+    if (slotIndex == 0) return;
 
     setState(() {
-      // Placing color
       if (_selectedIndex != null && _placedColors[slotIndex] == null) {
         final colorToPlace = _availableSlots[_selectedIndex!];
         _placedColors[slotIndex] = colorToPlace;
-        _availableSlots[_selectedIndex!] = null; // leave placeholder empty
+        _availableSlots[_selectedIndex!] = null;
         _selectedIndex = null;
-      }
-      // Removing color
-      else if (_placedColors[slotIndex] != null) {
+      } else if (_placedColors[slotIndex] != null) {
         final colorToRemove = _placedColors[slotIndex]!;
         _placedColors[slotIndex] = null;
 
-        // return to first empty available slot
         final emptyIndex = _availableSlots.indexOf(null);
         if (emptyIndex != -1) {
           _availableSlots[emptyIndex] = colorToRemove;
@@ -280,16 +348,8 @@ class _TestScreenPageState extends State<TestScreenPage> {
     });
   }
 
-void _showResults() {
-    // Collect all 15 colors exactly as arranged by the user
+  void _showResults() {
     final userOrder = _placedColors.whereType<Color>().toList();
-
-    // Optional sanity check (for debugging)
-    debugPrint("User order length: ${userOrder.length}");
-    for (int i = 0; i < userOrder.length; i++) {
-      debugPrint("Cap $i: ${userOrder[i]}");
-    }
-
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(

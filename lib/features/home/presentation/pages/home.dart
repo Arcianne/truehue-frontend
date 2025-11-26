@@ -43,16 +43,19 @@ class _HomeState extends State<Home> {
     final assistive = liveARMode == 'Assistive';
     final typeLower = colorBlindnessType.toLowerCase();
 
+    // Handle "Not set" or "Normal" for assistive mode
+    String finalType = typeLower;
+    if (assistive && (typeLower == 'normal' || typeLower == 'not set')) {
+      finalType = 'protanopia'; // Default for assistive mode
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => ArLiveViewPage(
           assistiveMode: assistive,
-          simulationType: assistive
-              ? null
-              : typeLower == 'normal'
-              ? 'protanopia'
-              : typeLower,
+          simulationType: assistive ? null : finalType,
+          colorBlindType: finalType,
         ),
       ),
     );
@@ -137,7 +140,7 @@ class _HomeState extends State<Home> {
           const SizedBox(height: 20),
           ElevatedButton.icon(
             icon: const Icon(Icons.visibility, size: 24),
-            label: const Text('AR Live View', style: TextStyle(fontSize: 25)),
+            label: const Text('Live Color View', style: TextStyle(fontSize: 25)),
             style: ElevatedButton.styleFrom(minimumSize: const Size(260, 60)),
             onPressed: openARLiveView,
           ),
@@ -163,7 +166,6 @@ class _HomeState extends State<Home> {
             onPressed: openColorLibraryPage,
           ),
           const SizedBox(height: 20),
-          // Display saved selections
           Text('Color Blindness Type: $colorBlindnessType'),
           Text('Live AR Mode: $liveARMode'),
         ],

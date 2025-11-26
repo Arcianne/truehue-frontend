@@ -24,10 +24,15 @@ Future<void> openARLiveView(BuildContext context) async {
   final prefs = await SharedPreferences.getInstance();
   final mode = prefs.getString('liveARMode') ?? 'Assistive';
   final colorBlindType = prefs.getString('colorBlindnessType') ?? 'Normal';
-
   final bool assistiveMode = mode == 'Assistive';
+  String colorBlindTypeFormatted = colorBlindType.toLowerCase();
+
+  if (assistiveMode && colorBlindTypeFormatted == 'normal') {
+    colorBlindTypeFormatted = 'protanopia';
+  }
+
   final String? simulationType = mode == 'Simulation'
-      ? colorBlindType.toLowerCase()
+      ? colorBlindTypeFormatted
       : null;
 
   if (!context.mounted) return;
@@ -38,6 +43,7 @@ Future<void> openARLiveView(BuildContext context) async {
       builder: (context) => ArLiveViewPage(
         assistiveMode: assistiveMode,
         simulationType: simulationType,
+        colorBlindType: colorBlindTypeFormatted,
       ),
     ),
   );
@@ -608,7 +614,6 @@ class ColorFamilyDetailPage extends StatelessWidget {
       child: InkWell(
         onTap: () {
           HapticFeedback.lightImpact();
-          // Optional: Add color detail dialog or copy RGB to clipboard
           _showColorDetails(colorName, rgb);
         },
         borderRadius: BorderRadius.circular(12),
@@ -664,7 +669,5 @@ class ColorFamilyDetailPage extends StatelessWidget {
   }
 
   void _showColorDetails(String colorName, List<int>? rgb) {
-    // Optional: Show a dialog with more color information
-    // You can implement this to show hex values, HSL, etc.
   }
 }
