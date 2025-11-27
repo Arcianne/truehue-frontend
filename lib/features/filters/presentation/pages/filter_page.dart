@@ -62,9 +62,9 @@ Future<RecolorResult> _buildMaskInIsolate(RecolorData data) async {
   final originalGreens = <int>[];
   final originalBlues = <int>[];
 
-  // print(
-  //   'Building mask for color: RGB(${data.sourceColor.red}, ${data.sourceColor.green}, ${data.sourceColor.blue}) with tolerance ${data.tolerance}',
-  // );
+  debugPrint(
+    'Building mask for color: RGB(${data.sourceColor.red}, ${data.sourceColor.green}, ${data.sourceColor.blue}) with tolerance ${data.tolerance}',
+  );
 
   for (int y = 0; y < image.height; y++) {
     for (int x = 0; x < image.width; x++) {
@@ -72,9 +72,8 @@ Future<RecolorResult> _buildMaskInIsolate(RecolorData data) async {
       final r = pixel.r.toInt();
       final g = pixel.g.toInt();
       final b = pixel.b.toInt();
-      final a = pixel.a.toInt(); // Get alpha channel
+      final a = pixel.a.toInt(); 
 
-      // FIX: Skip transparent or nearly transparent pixels
       if (a < 50) continue;
 
       final currentColor = Color.fromARGB(255, r, g, b);
@@ -89,7 +88,7 @@ Future<RecolorResult> _buildMaskInIsolate(RecolorData data) async {
     }
   }
 
-  // print('Found ${pixelIndices.length} matching pixels');
+  debugPrint('Found ${pixelIndices.length} matching pixels');
 
   return RecolorResult(
     pixelIndices: pixelIndices,
@@ -236,8 +235,7 @@ class _FilterPageState extends State<FilterPage> {
     final avgG = (g / totalWeight).round().clamp(0, 255);
     final avgB = (b / totalWeight).round().clamp(0, 255);
 
-    // Debug print
-    // print('Picked color at ($x, $y): RGB($avgR, $avgG, $avgB)');
+    debugPrint('Picked color at ($x, $y): RGB($avgR, $avgG, $avgB)');
 
     return Color.fromARGB(255, avgR, avgG, avgB);
   }
@@ -294,7 +292,6 @@ class _FilterPageState extends State<FilterPage> {
         final pixel = result.getPixelSafe(x, y);
         final a = pixel.a.toInt();
 
-        // FIX: Skip transparent pixels
         if (a < 50) continue;
 
         final currentColor = Color.fromARGB(
@@ -319,7 +316,6 @@ class _FilterPageState extends State<FilterPage> {
   Future<void> _buildRecolorMask(Color sourceColor) async {
     if (_originalImage == null) return;
 
-    // FIX: Always use original image for mask detection
     final original = _originalImage!;
 
     final data = RecolorData(
@@ -337,7 +333,6 @@ class _FilterPageState extends State<FilterPage> {
       _originalReds = result.originalReds;
       _originalGreens = result.originalGreens;
       _originalBlues = result.originalBlues;
-      // FIX: Cache original image for recoloring
       _cachedRecolorMask = _originalImage!.clone();
     });
   }
@@ -356,7 +351,6 @@ class _FilterPageState extends State<FilterPage> {
       final originalPixel = result.getPixelSafe(x, y);
       final originalAlpha = originalPixel.a.toInt();
 
-      // FIX: Use stored original colors for consistent recoloring
       final currentColor = Color.fromARGB(
         255,
         _originalReds![i],
@@ -366,20 +360,17 @@ class _FilterPageState extends State<FilterPage> {
 
       final hsv = HSVColor.fromColor(currentColor);
 
-      // FIX: Better hue calculation - shift relative to picked color
       final pickedHsv = HSVColor.fromColor(_pickedColor);
       final hueDiff = targetHue - pickedHsv.hue;
       final newHue = (hsv.hue + hueDiff) % 360;
 
-      // FIX: Preserve original saturation and value for more natural results
       final newColor = HSVColor.fromAHSV(
         1.0,
         newHue,
-        hsv.saturation, // Keep original saturation
-        hsv.value, // Keep original brightness
+        hsv.saturation,
+        hsv.value,
       ).toColor();
 
-      // FIX: Preserve original alpha channel for transparent PNGs
       result.setPixelRgba(
         x,
         y,
@@ -405,7 +396,6 @@ class _FilterPageState extends State<FilterPage> {
     try {
       await _buildRecolorMask(_pickedColor);
 
-      // Debug: Check if pixels were found
       if (_pixelsToRecolor == null || _pixelsToRecolor!.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -422,8 +412,7 @@ class _FilterPageState extends State<FilterPage> {
         // Apply the recolor
         _applyFastRecolor(HSVColor.fromColor(_recolorTargetColor).hue);
 
-        // Debug: Show how many pixels were found
-        // print('Recoloring ${_pixelsToRecolor!.length} pixels');
+        debugPrint('Recoloring ${_pixelsToRecolor!.length} pixels');
       }
     } catch (e) {
       if (mounted) {
@@ -475,10 +464,9 @@ class _FilterPageState extends State<FilterPage> {
       _g = _pickedColor.green;
       _b = _pickedColor.blue;
 
-      // FIX: Properly assign color name and family
       _colorFamily = ColorMatcher.getColorFamily(_r, _g, _b);
       _colorName =
-          _colorFamily; // Use family as name if no specific name method exists
+          _colorFamily;
 
       if (_currentFilterMode == FilterMode.recolor) {
         _recolorScreenPosition = stackLocalPos;

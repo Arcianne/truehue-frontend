@@ -816,7 +816,7 @@ ColorFilter _getAssistiveColorFilter(String type) {
                     ),
                   ),
 
-                // Filter info badge (assistive mode)
+                // Filter info (assistive mode)
                 if (widget.assistiveMode && _assistiveFilterEnabled)
                   Positioned(
                     top: MediaQuery.of(context).padding.top + 16,
@@ -853,7 +853,7 @@ ColorFilter _getAssistiveColorFilter(String type) {
                     ),
                   ),
 
-                // Center circle (only if not in split mode or in assistive mode)
+                // Center circle
                 if (widget.assistiveMode ||
                     (!_isSplitMode && _colorDetectionEnabled))
                   Align(
@@ -1020,7 +1020,7 @@ ColorFilter _getAssistiveColorFilter(String type) {
                     ),
                   ),
 
-                // Bottom scanning button (only show if color detection is enabled and not in split mode)
+                // Bottom scanning button
                 if (_colorDetectionEnabled && !_isSplitMode)
                   Positioned(
                     bottom: 0,

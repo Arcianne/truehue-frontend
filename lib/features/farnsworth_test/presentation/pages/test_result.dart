@@ -69,7 +69,7 @@ class _TestResultPageState extends State<TestResultPage> {
     // Save both colorblindness type and auto-selected mode
     await prefs.setString('colorBlindnessType', mappedType);
     await prefs.setString('liveARMode', autoMode);
-    await prefs.setBool('hasSeenOnboarding', true); // Mark onboarding complete
+    await prefs.setBool('hasSeenOnboarding', true);
 
     debugPrint('✅ Saved color blindness type: $type -> $mappedType');
     debugPrint('✅ Auto-selected mode: $autoMode');
