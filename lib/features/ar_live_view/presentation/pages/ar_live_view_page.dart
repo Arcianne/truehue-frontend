@@ -145,9 +145,6 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
       await _tts.setVolume(1.0);
       await _tts.setPitch(1.0);
 
-      _tts.setCompletionHandler(() => debugPrint("✅ TTS completed"));
-      _tts.setErrorHandler((msg) => debugPrint("❌ TTS Error: $msg"));
-
       setState(() => _ttsReady = true);
     } catch (e) {
       debugPrint("❌ TTS initialization error: $e");
@@ -364,46 +361,43 @@ class _ArLiveViewState extends State<ArLiveViewPage> {
 
 ColorFilter _getAssistiveColorFilter(String type) {
     switch (type.toLowerCase()) {
-      case 'protanopia': // highlight RED
+      case 'protanopia': // B&W + POP RED
         return const ColorFilter.matrix([
-          // R' = 1.20*R
-          1.20, 0.00, 0.00, 0, 0,
-          // G' = grayscale(R,G,B)
-          0.33, 0.33, 0.33, 0, 0,
-          // B' = grayscale(R,G,B)
-          0.33, 0.33, 0.33, 0, 0,
+          // R' = Keep original red channel (pop red)
+          1.0, 0, 0, 0, 0,
+          // G' = Grayscale (desaturate green/blue)
+          0.299, 0.587, 0.114, 0, 0,
+          // B' = Grayscale
+          0.299, 0.587, 0.114, 0, 0,
           // A
           0, 0, 0, 1, 0,
         ]);
 
-      case 'deuteranopia': // highlight GREEN
+      case 'deuteranopia': // B&W + POP GREEN
         return const ColorFilter.matrix([
-          // R' = grayscale(R,G,B)
-          0.33, 0.33, 0.33, 0, 0,
-          // G' = 1.15*G
-          0.00, 1.15, 0.00, 0, 0,
-          // B' = grayscale(R,G,B)
-          0.33, 0.33, 0.33, 0, 0,
+          // R' = Grayscale
+          0.299, 0.587, 0.114, 0, 0,
+          // G' = Keep original green channel (pop green)
+          0, 1.0, 0, 0, 0,
+          // B' = Grayscale
+          0.299, 0.587, 0.114, 0, 0,
           // A
           0, 0, 0, 1, 0,
         ]);
 
-      case 'tritanopia': //highlight YELLOW
-      return const ColorFilter.matrix([
-          // R' = boosted grayscale (stronger red presence)
-          0.45, 0.45, 0.10, 0, 15,
-
-          // G' = boosted grayscale (stronger green presence)
-          0.45, 0.45, 0.10, 0, 15,
-
-          // B' = reduce blue slightly because blue perception is weak in Tritanopia
-          0.20, 0.20, 0.20, 0, -20,
-
+      case 'tritanopia': // B&W + POP BLUE
+        return const ColorFilter.matrix([
+          // R' = Grayscale
+          0.299, 0.587, 0.114, 0, 0,
+          // G' = Grayscale
+          0.299, 0.587, 0.114, 0, 0,
+          // B' = Keep original blue channel (pop blue)
+          0, 0, 1.0, 0, 0,
           // A
           0, 0, 0, 1, 0,
         ]);
 
-      default: // normal / fallback
+      default:
         return const ColorFilter.matrix([
           1,
           0,
@@ -526,7 +520,7 @@ ColorFilter _getAssistiveColorFilter(String type) {
       case 'deuteranopia':
         return 'Green';
       case 'tritanopia':
-        return 'Blue';
+        return 'Blue and Yellow';
       default:
         return 'Color';
     }

@@ -190,11 +190,11 @@ class _SettingsPageState extends State<SettingsPage> {
                       final descriptions = {
                         'Normal': 'No color vision deficiency',
                         'Protanopia':
-                            'Red-green color blindness (difficulty distinguishing red hues)',
+                            'Difficulty distinguishing red hues',
                         'Deuteranopia':
-                            'Red-green color blindness (difficulty distinguishing green hues)',
+                            'Difficulty distinguishing green hues',
                         'Tritanopia':
-                            'Blue-yellow color blindness (difficulty distinguishing blue and yellow hues)',
+                            'Difficulty distinguishing blue and yellow hues',
                       };
 
                       return DropdownMenuItem<String>(

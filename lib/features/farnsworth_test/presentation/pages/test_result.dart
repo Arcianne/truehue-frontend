@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:truehue/features/onboarding/presentation/pages/mode_selection_page.dart';
+import 'package:truehue/features/home/presentation/pages/home.dart';
 import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
+
 // ---------------------------------------------
 // TEST RESULT PAGE
 // ---------------------------------------------
@@ -22,7 +23,7 @@ class TestResultPage extends StatefulWidget {
 class _TestResultPageState extends State<TestResultPage> {
   late DiagnosisResult diagnosis;
 
-@override
+  @override
   void initState() {
     super.initState();
     // Analyze the color vision test
@@ -31,35 +32,56 @@ class _TestResultPageState extends State<TestResultPage> {
       widget.referenceColors,
     ).analyze(debug: true);
 
-    // Save the result to SharedPreferences
-    _saveColorBlindnessType(diagnosis.type);
+    // Save the result AND auto-set mode
+    _saveResultsAndMode(diagnosis.type);
   }
 
-    Future<void> _saveColorBlindnessType(String type) async {
+  Future<void> _saveResultsAndMode(String type) async {
     final prefs = await SharedPreferences.getInstance();
 
     // Map test result types to settings format
     String mappedType;
+    String autoMode; // Automatically determined mode
+
     switch (type.toUpperCase()) {
       case 'PROTAN':
         mappedType = 'Protanopia';
+        autoMode = 'Assistive'; // Color blind → Assistive
         break;
       case 'DEUTAN':
         mappedType = 'Deuteranopia';
+        autoMode = 'Assistive'; // Color blind → Assistive
         break;
       case 'TRITAN':
         mappedType = 'Tritanopia';
+        autoMode = 'Assistive'; // Color blind → Assistive
         break;
       case 'NORMAL':
         mappedType = 'Normal';
+        autoMode = 'Simulation'; // Normal vision → Simulation
         break;
       default:
-        mappedType = 'Normal'; // Default for NON-SPECIFIC or unknown
+        mappedType = 'Normal';
+        autoMode = 'Simulation'; // Default for NON-SPECIFIC
         break;
     }
 
+    // Save both colorblindness type and auto-selected mode
     await prefs.setString('colorBlindnessType', mappedType);
+    await prefs.setString('liveARMode', autoMode);
+    await prefs.setBool('hasSeenOnboarding', true); // Mark onboarding complete
+
     debugPrint('✅ Saved color blindness type: $type -> $mappedType');
+    debugPrint('✅ Auto-selected mode: $autoMode');
+  }
+
+  Future<void> _navigateToHome() async {
+    if (!mounted) return;
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const Home()),
+    );
   }
 
   @override
@@ -90,12 +112,7 @@ class _TestResultPageState extends State<TestResultPage> {
             _buildAnalysisContainer(diagnosis),
             const Spacer(),
             ElevatedButton(
-              onPressed: () => Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ModeSelectionPage(),
-                ),
-              ),
+              onPressed: _navigateToHome,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFCEF5FF),
                 foregroundColor: Colors.black,
@@ -289,7 +306,7 @@ class ColorVisionDiagnosis {
       atan2(refSumDy, refSumDx) * 180 / pi,
     );
 
-// Apply fine-tuning offset (~+35°) to align your color palette’s "normal" axis to 0°
+    // Apply fine-tuning offset (~+35°) to align your color palette's "normal" axis to 0°
     double calibratedAngleDeg = _normalizeAngleDegrees(
       meanAngleDeg - refAngleDeg + 35,
     );
@@ -306,7 +323,6 @@ class ColorVisionDiagnosis {
     } else {
       type = "DEUTAN";
     }
-
 
     // --- Percent similarity calculation ---
     final dProt = _angularDistanceDeg(calibratedAngleDeg, 25.0);
@@ -396,7 +412,6 @@ class ColorVisionDiagnosis {
     if (cIndex <= 5.0) return "Moderate";
     return "Severe";
   }
-
 
   double _normalizeAngleDegrees(double angle) {
     double a = angle % 360;

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'mode_selection_page.dart';
+import 'package:truehue/features/home/presentation/pages/home.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:truehue/config/theme/custom_theme/elevated_button_extensions.dart';
 
@@ -15,12 +15,22 @@ class _ColorBlindnessTypePageState extends State<ColorBlindnessTypePage> {
 
   Future<void> saveTypeAndNext(String type) async {
     final prefs = await SharedPreferences.getInstance();
+
+    // Save the color blindness type
     await prefs.setString('colorBlindnessType', type);
 
+    // Auto-set mode to Assistive (since user is color blind)
+    await prefs.setString('liveARMode', 'Assistive');
+
+    // Mark onboarding as complete
+    await prefs.setBool('hasSeenOnboarding', true);
+
     if (!mounted) return;
+
+    // Navigate directly to Home
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => const ModeSelectionPage()),
+      MaterialPageRoute(builder: (_) => const Home()),
     );
   }
 

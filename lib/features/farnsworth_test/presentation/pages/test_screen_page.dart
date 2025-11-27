@@ -190,7 +190,8 @@ class _TestScreenPageState extends State<TestScreenPage> {
                   '1. Tap a color from the palette\n'
                   '2. Tap on a blank circle below to place it\n'
                   '3. Begin with the BLUE color at the start that is beside the blank circle.\n'
-                  '4. Arrange the other colors so their hues transition smoothly from one to the next.',
+                  '4. Arrange the other colors so their hues transition smoothly from one to the next.\n'
+                  '5. The color should END with the darkest shade of PURPLE that is available',
                   style: TextStyle(color: Color(0xFFCEF5FF)),
                 ),
               ),

@@ -6,6 +6,7 @@ import 'package:truehue/features/take_a_photo/presentation/pages/take_a_photo_pa
 import 'package:truehue/features/color_library/presentation/pages/color_library_page.dart';
 import 'package:truehue/features/settings/presentation/pages/settings_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -16,12 +17,22 @@ class Home extends StatefulWidget {
 
 class _HomeState extends State<Home> {
   String colorBlindnessType = 'Not set';
-  String liveARMode = 'Assistive'; // default to Assistive
+  String liveARMode = 'Assistive';
+
+  // Global keys for tutorial targets
+  final GlobalKey _liveViewKey = GlobalKey();
+  final GlobalKey _takePhotoKey = GlobalKey();
+  final GlobalKey _selectPhotoKey = GlobalKey();
+  final GlobalKey _colorLibraryKey = GlobalKey();
+  final GlobalKey _settingsKey = GlobalKey();
+
+  TutorialCoachMark? tutorialCoachMark;
 
   @override
   void initState() {
     super.initState();
     _loadPreferences();
+    _checkAndShowTutorial();
   }
 
   // Reload preferences whenever this page is shown
@@ -37,6 +48,231 @@ class _HomeState extends State<Home> {
       colorBlindnessType = prefs.getString('colorBlindnessType') ?? 'Not set';
       liveARMode = prefs.getString('liveARMode') ?? 'Assistive';
     });
+  }
+
+  Future<void> _checkAndShowTutorial() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasSeenTutorial = prefs.getBool('hasSeenHomeTutorial') ?? false;
+
+    if (!hasSeenTutorial) {
+      // Delay to ensure widgets are built
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (mounted) {
+        _showTutorial();
+        // Mark tutorial as seen
+        await prefs.setBool('hasSeenHomeTutorial', true);
+      }
+    }
+  }
+
+  void _showTutorial() {
+    tutorialCoachMark = TutorialCoachMark(
+      targets: _createTargets(),
+      colorShadow: Colors.black,
+      paddingFocus: 10,
+      opacityShadow: 0.8,
+      alignSkip: Alignment.bottomRight,
+      textSkip: "SKIP",
+      onFinish: () {
+        print('Tutorial finished');
+      },
+      onSkip: () {
+        print('Tutorial skipped');
+        return true;
+      },
+    );
+
+    tutorialCoachMark!.show(context: context);
+  }
+
+  List<TargetFocus> _createTargets() {
+    List<TargetFocus> targets = [];
+
+    targets.add(
+      TargetFocus(
+        identify: "liveView",
+        keyTarget: _liveViewKey,
+        alignSkip: Alignment.topRight,
+        shape: ShapeLightFocus.RRect,
+        radius: 10,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            padding: const EdgeInsets.all(20),
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    "Live Color View",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 20.0,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    "Use your camera in real-time to see color adjustments or simulations based on your settings.",
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+
+    targets.add(
+      TargetFocus(
+        identify: "takePhoto",
+        keyTarget: _takePhotoKey,
+        alignSkip: Alignment.topRight,
+        shape: ShapeLightFocus.RRect,
+        radius: 10,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            padding: const EdgeInsets.all(20),
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    "Take a Photo",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 20.0,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    "Capture a photo and analyze its colors. Perfect for identifying specific colors in your environment.",
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+
+    targets.add(
+      TargetFocus(
+        identify: "selectPhoto",
+        keyTarget: _selectPhotoKey,
+        alignSkip: Alignment.topRight,
+        shape: ShapeLightFocus.RRect,
+        radius: 10,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            padding: const EdgeInsets.all(20),
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    "Select a Photo",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 20.0,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    "Upload an existing photo from your gallery to analyze its colors.",
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+
+    targets.add(
+      TargetFocus(
+        identify: "colorLibrary",
+        keyTarget: _colorLibraryKey,
+        alignSkip: Alignment.topRight,
+        shape: ShapeLightFocus.RRect,
+        radius: 10,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            padding: const EdgeInsets.all(20),
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    "Color Library",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 20.0,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    "Browse and explore a collection of colors. Learn about different color names and their properties.",
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+
+    targets.add(
+      TargetFocus(
+        identify: "settings",
+        keyTarget: _settingsKey,
+        alignSkip: Alignment.topRight,
+        shape: ShapeLightFocus.Circle,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            padding: const EdgeInsets.all(20),
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    "Settings",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 20.0,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    "Configure your color blindness type and Live AR mode. These settings will affect how colors are displayed throughout the app.",
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+
+    return targets;
   }
 
   void openARLiveView() {
@@ -105,6 +341,7 @@ class _HomeState extends State<Home> {
               top: 10,
               right: 10,
               child: ElevatedButton(
+                key: _settingsKey,
                 onPressed: openSettingsPage,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF130E64),
@@ -138,32 +375,72 @@ class _HomeState extends State<Home> {
             ),
           ),
           const SizedBox(height: 20),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.visibility, size: 24),
-            label: const Text('Live Color View', style: TextStyle(fontSize: 25)),
-            style: ElevatedButton.styleFrom(minimumSize: const Size(260, 60)),
-            onPressed: openARLiveView,
+          SizedBox(
+            width: 300,
+            height: 60,
+            child: ElevatedButton(
+              key: _liveViewKey,
+              onPressed: openARLiveView,
+              child: Row(
+                children: const [
+                  SizedBox(width: 16),
+                  Icon(Icons.visibility, size: 24),
+                  SizedBox(width: 16),
+                  Text('Live Color View', style: TextStyle(fontSize: 25)),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 20),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.camera_alt, size: 24),
-            label: const Text('Take a Photo', style: TextStyle(fontSize: 25)),
-            style: ElevatedButton.styleFrom(minimumSize: const Size(260, 60)),
-            onPressed: openTakeAPhotoPage,
+          SizedBox(
+            width: 300,
+            height: 60,
+            child: ElevatedButton(
+              key: _takePhotoKey,
+              onPressed: openTakeAPhotoPage,
+              child: Row(
+                children: const [
+                  SizedBox(width: 16),
+                  Icon(Icons.camera_alt, size: 24),
+                  SizedBox(width: 16),
+                  Text('Take a Photo', style: TextStyle(fontSize: 25)),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 20),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.upload_outlined, size: 24),
-            label: const Text('Select a Photo', style: TextStyle(fontSize: 25)),
-            style: ElevatedButton.styleFrom(minimumSize: const Size(260, 60)),
-            onPressed: openSelectAPhotoPage,
+          SizedBox(
+            width: 300,
+            height: 60,
+            child: ElevatedButton(
+              key: _selectPhotoKey,
+              onPressed: openSelectAPhotoPage,
+              child: Row(
+                children: const [
+                  SizedBox(width: 16),
+                  Icon(Icons.upload_outlined, size: 24),
+                  SizedBox(width: 16),
+                  Text('Select a Photo', style: TextStyle(fontSize: 25)),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 20),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.menu_book, size: 24),
-            label: const Text('Color Library', style: TextStyle(fontSize: 25)),
-            style: ElevatedButton.styleFrom(minimumSize: const Size(260, 60)),
-            onPressed: openColorLibraryPage,
+          SizedBox(
+            width: 300,
+            height: 60,
+            child: ElevatedButton(
+              key: _colorLibraryKey,
+              onPressed: openColorLibraryPage,
+              child: Row(
+                children: const [
+                  SizedBox(width: 16),
+                  Icon(Icons.menu_book, size: 24),
+                  SizedBox(width: 16),
+                  Text('Color Library', style: TextStyle(fontSize: 25)),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 20),
           Text('Color Blindness Type: $colorBlindnessType'),
@@ -171,5 +448,11 @@ class _HomeState extends State<Home> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    tutorialCoachMark?.finish();
+    super.dispose();
   }
 }
